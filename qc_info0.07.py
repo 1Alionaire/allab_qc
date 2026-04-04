@@ -218,8 +218,8 @@ class QCProcessorApp:
         
         output_file = Path(self.folder_path) / "qc_data.xlsx"
         
-        result_wb = Workbook()
-        result_wb.save(output_file)
+        # result_wb = Workbook()
+        # result_wb.save(output_file)
 
         raw_df = pd.DataFrame(results, columns=["number", "project", "date", 
                                             "analyst_info", "plm_count", "nob_count", 
@@ -228,12 +228,10 @@ class QCProcessorApp:
         raw_df['date'] = pd.to_datetime(raw_df['date']).dt.date
         raw_df = raw_df.sort_values(by='date')
 
-        with pd.ExcelWriter(output_file, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+        with pd.ExcelWriter(output_file, engine='openpyxl', mode='w') as writer:
             raw_df.to_excel(writer, sheet_name='raw_sheet', index=False)
 
-        analsysts_in_df = raw_df['analyst_info'].unique()
-        with pd.ExcelWriter(output_file, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-            for analyst in analsysts_in_df:
+            for analyst in raw_df['analyst_info'].unique():
                 analyst_df = raw_df[raw_df['analyst_info'] == analyst]
                 analyst_df = analyst_df.sort_values(by='date')
                 analyst_df = analyst_df.groupby('date', as_index=False)[['plm_count', 'nob_count', 'tem_count']].sum()
@@ -260,3 +258,5 @@ if __name__ == "__main__":
     root = Tk()
     app = QCProcessorApp(root)
     root.mainloop()
+
+    # pyinstaller --onefile --windowed --name="QC_Collector" qc_info0.07.py
