@@ -244,7 +244,7 @@ class QCProcessorApp:
         raw_df['date'] = pd.to_datetime(raw_df['date']).dt.date
         raw_df = raw_df.sort_values(by='date')
         
-        with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
+        with pd.ExcelWriter(output_file, engine='openpyxl', mode='w') as writer:
             raw_df.to_excel(writer, sheet_name='raw_sheet', index=False)
 
             for analyst in raw_df['analyst'].unique():
