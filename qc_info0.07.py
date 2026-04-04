@@ -5,6 +5,7 @@ from tkinter.ttk import Progressbar
 from openpyxl import Workbook, load_workbook
 import pandas as pd
 from datetime import date
+import json
 
 
 class QCProcessorApp:
@@ -148,7 +149,7 @@ class QCProcessorApp:
                 sample_sheet = wb["SampleAnalyses"]
                 if sample_sheet["B3"].value:
                     if len(str(sample_sheet["B3"].value).strip()) > 1:
-                        analyst_info = str(sample_sheet["B3"].value).strip()
+                        analyst_info = str(sample_sheet["B3"].value).strip().upper()
                 else:
                     analyst_info = "No Analyst"
             else: 
@@ -186,7 +187,8 @@ class QCProcessorApp:
             int_month_analyzed = None
             if date_analyzed:
                 # date_analyzed = date(date_analyzed)
-                print(date_analyzed)
+                # print(date_analyzed)
+                pass
             else:
                 date_analyzed = None
 
@@ -216,73 +218,26 @@ class QCProcessorApp:
         
         output_file = Path(self.folder_path) / "qc_data.xlsx"
         
-        out_wb = Workbook()
-        out_sheet = out_wb.active
-        out_sheet.title = "QC Data"
+        result_wb = Workbook()
+        result_wb.save(output_file)
+
+        raw_df = pd.DataFrame(results, columns=["number", "project", "date", 
+                                            "analyst_info", "plm_count", "nob_count", 
+                                            "tem_count", "month"])
         
-        headers = ["Number", "Project", "Date", "Analyst", "plm_count", "nob_count", "tem_count", "Month"]
-        out_sheet.append(headers)
-        
-        for r in results:
-            out_sheet.append([
-                r["number"],
-                r["project"],
-                r["date"],
-                r["analyst_info"],
-                r["plm_count"],
-                r["nob_count"],
-                r["tem_count"],
-                r["month"]
-            ])
-        
-        for col in out_sheet.columns:
-            max_length = max(len(str(cell.value or "")) for cell in col)
-            out_sheet.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
-        
-        out_wb.save(output_file)
-        
-        # === ЭТАП 3: Группировка с помощью pandas ===
-        self.update_status("Создаю сводные таблицы...")
-        self.log_message("\nСоздаю сводные таблицы...")
-        
-        # Читаем созданный файл
-        df = pd.read_excel(output_file)
-        
-        # Очищаем данные: убираем пробелы и приводим к единому формату
-        df["Analyst"] = df["Analyst"].astype(str).str.strip().str.upper()
-        df["Month"] = df["Month"].astype(str).str.strip()
-        
-        # Группировка по Analyst (колонка C = Analyst)
-        analyst_summary = df.groupby("Analyst").agg({
-            "plm_count": "sum",
-            "nob_count": "sum",
-            "tem_count": "sum",
-            "Number": "count"
-        }).rename(columns={"Number": "Кол-во проектов"}).reset_index()
-        analyst_summary.rename(columns={"Analyst": "Analyst"}, inplace=True)
-        
-        # Группировка по Month (колонка G = Month)
-        month_summary = df.groupby("Month").agg({
-            "plm_count": "sum",
-            "nob_count": "sum",
-            "tem_count": "sum",
-            "Number": "count"
-        }).rename(columns={"Number": "Кол-во проектов"}).reset_index()
-        
-        # Группировка по Analyst + Month (разбивка по месяцам у каждого аналитика)
-        analyst_month_summary = df.groupby(["Analyst", "Month"]).agg({
-            "plm_count": "sum",
-            "nob_count": "sum",
-            "tem_count": "sum",
-            "Number": "count"
-        }).rename(columns={"Number": "Кол-во проектов"}).reset_index()
-        analyst_month_summary.rename(columns={"Analyst": "Analyst"}, inplace=True)
-        
-        # Записываем сводные таблицы в тот же файл на отдельные листы
+        raw_df['date'] = pd.to_datetime(raw_df['date']).dt.date
+        raw_df = raw_df.sort_values(by='date')
+
         with pd.ExcelWriter(output_file, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
-            analyst_summary.to_excel(writer, sheet_name='По аналитикам', index=False)
-            month_summary.to_excel(writer, sheet_name='По месяцам', index=False)
-            analyst_month_summary.to_excel(writer, sheet_name='Аналитик-Месяц', index=False)
+            raw_df.to_excel(writer, sheet_name='raw_sheet', index=False)
+
+        analsysts_in_df = raw_df['analyst_info'].unique()
+        with pd.ExcelWriter(output_file, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+            for analyst in analsysts_in_df:
+                analyst_df = raw_df[raw_df['analyst_info'] == analyst]
+                analyst_df = analyst_df.sort_values(by='date')
+                analyst_df = analyst_df.groupby('date', as_index=False)[['plm_count', 'nob_count', 'tem_count']].sum()
+                analyst_df.to_excel(writer, sheet_name=f'{analyst}_sum', index=False)
         
         self.log_message("  ✓ Лист 'По аналитикам' создан")
         self.log_message("  ✓ Лист 'По месяцам' создан")
@@ -295,14 +250,7 @@ class QCProcessorApp:
         
         messagebox.showinfo(
             "Готово!", 
-            f"Обработано файлов: {len(results)}\n\n"
-            f"Созданы листы:\n"
-            f"• QC Data - все данные\n"
-            f"• По аналитикам - группировка по Analyst\n"
-            f"• По месяцам - группировка по Month\n"
-            f"• Аналитик-Месяц - разбивка по месяцам у каждого аналитика\n\n"
-            f"Файл: {output_file}"
-        )
+            f"Обработано файлов: {len(results)}\n\n")
         
         self.btn_run.config(state=NORMAL)
         self.btn_select.config(state=NORMAL)
