@@ -1,95 +1,86 @@
 import os
-from pathlib import Path
-from openpyxl import Workbook, load_workbook
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+import threading
 
-def process_excel_files(root_folder, output_file="qc_data.xlsx"):
-    results = []
-    counter = 0
+
+
+
+class ExcelMainApp:
+
+    def __init__(self, root):
+        self.root = root
+        self.root.title('Find QC')
+        self.root.geometry("1200x800")
+        self.output_folder = ""
+        self.create_widgets()
+
+    def create_widgets(self):
+
+        self.btn_select = tk.Button(
+            self.root, 
+            text="Choose Folder", 
+            command=self.select_folder,
+            width=20,
+            height=2
+        )
+        self.btn_select.pack(pady=10)
+        
+        # Метка с выбранной папкой
+        self.lbl_folder = tk.Label(self.root, text="Папка не выбрана", wraplength=550)
+        self.lbl_folder.pack(pady=5)
+        
+        # Кнопка запуска
+        self.btn_run = tk.Button(
+            self.root, 
+            text="Запустить", 
+            command=self.run_processing,
+            width=20,
+            height=2,
+            state=tk.DISABLED
+        )
+        self.btn_run.pack(pady=10)
+        
+        # Прогресс-бар
+        self.progress = ttk.Progressbar(self.root, length=550, mode='determinate')
+        self.progress.pack(pady=10)
+        
+        # Текущий статус
+        self.lbl_status = tk.Label(self.root, text="", font=("Arial", 10))
+        self.lbl_status.pack(pady=5)
+        
+        # Лог
+        self.log = tk.Text(self.root, height=10, width=70, state=tk.DISABLED)
+        self.log.pack(pady=10)
     
-    for filepath in Path(root_folder).rglob("*.xlsx"):
-        try:
-            wb = load_workbook(filepath, data_only=True, read_only=True)
-        except Exception as e:
-            print(f"Не удалось открыть {filepath}: {e}")
-            continue
+    def select_folder(self):
+        folder = filedialog.askdirectory(title="Выберите папку с Excel-файлами")
+        if folder:
+            self.folder_path = folder
+            self.lbl_folder.config(text=f"Папка: {folder}")
+            self.btn_run.config(state=tk.NORMAL)
+
+    def run_processing(self):
+        """Запускает обработку в отдельном потоке"""
+        self.btn_run.config(state=tk.DISABLED)
+        self.btn_select.config(state=tk.DISABLED)
+        self.progress['value'] = 0
         
-        # Проверяем наличие листа PLM_TEM_Report
-        if "PLM_TEM_Report" not in wb.sheetnames:
-            wb.close()
-            continue
+        # Очищаем лог
+        self.log.config(state=tk.NORMAL)
+        self.log.delete(1.0, tk.END)
+        self.log.config(state=tk.DISABLED)
         
-        counter += 1
-        
-        # 1. Берем информацию из M1 листа PLM_TEM_Report
-        plm_sheet = wb["PLM_TEM_Report"]
-        project_info = plm_sheet["M1"].value
-        
-        # 2. Берем информацию из B3 листа SampleAnalyses
-        sample_info = None
-        if "SampleAnalyses" in wb.sheetnames:
-            sample_sheet = wb["SampleAnalyses"]
-            sample_info = sample_sheet["B3"].value
-        
-        # 3. Считаем строки по значениям в колонке G (начиная с 6 строки)
-        plm_count = 0
-        nob_count = 0
-        tem_count = 0
-        
-        for row in plm_sheet.iter_rows(min_row=6, min_col=7, max_col=7):
-            cell_value = row[0].value
-            if cell_value is not None:
-                cell_str = str(cell_value).strip()
-                if cell_str in ("198.1", "198,1"):
-                    plm_count += 1
-                elif cell_str in ("198.6", "198,6"):
-                    nob_count += 1
-                elif cell_str in ("198.4", "198,4"):
-                    tem_count += 1
-        
-        wb.close()
-        
-        results.append({
-            "number": counter,
-            "project": project_info,
-            "sample_info": sample_info,
-            "plm_count": plm_count,
-            "nob_count": nob_count,
-            "tem_count": tem_count
-        })
-        
-        print(f"Обработан: {filepath.name}")
+        # Запускаем в отдельном потоке, чтобы GUI не зависал
+        thread = threading.Thread(target=self.process_files)
+        thread.start()
     
-    # Создаем выходной файл
-    out_wb = Workbook()
-    out_sheet = out_wb.active
-    out_sheet.title = "QC Data"
+    def process(files)
     
-    # Заголовки
-    headers = ["Номер", "Проект", "SampleAnalyses B3", "plm_count", "nob_count", "tem_count"]
-    out_sheet.append(headers)
-    
-    # Данные
-    for r in results:
-        out_sheet.append([
-            r["number"],
-            r["project"],
-            r["sample_info"],
-            r["plm_count"],
-            r["nob_count"],
-            r["tem_count"]
-        ])
-    
-    # Автоширина колонок
-    for col in out_sheet.columns:
-        max_length = max(len(str(cell.value or "")) for cell in col)
-        out_sheet.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
-    
-    out_wb.save(output_file)
-    print(f"\nГотово! Обработано файлов: {len(results)}")
-    print(f"Результат сохранен в: {output_file}")
+def main():
+    root = tk.Tk()
+    app = ExcelMainApp(root)
+    root.mainloop()
 
 if __name__ == "__main__":
-    # Укажите путь к корневой папке с Excel-файлами
-    ROOT_FOLDER = "/path/to/your/excel/files"
-    
-    process_excel_files(ROOT_FOLDER, "qc_data.xlsx")
+    main()

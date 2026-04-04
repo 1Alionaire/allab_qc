@@ -4,6 +4,7 @@ from tkinter import Tk, Button, Label, Text, filedialog, messagebox, END, DISABL
 from tkinter.ttk import Progressbar
 from openpyxl import Workbook, load_workbook
 import pandas as pd
+from datetime import date
 
 
 class QCProcessorApp:
@@ -128,12 +129,18 @@ class QCProcessorApp:
                 wb.close()
                 continue
             
-            counter += 1
-            
-            # 1. Берем информацию из M1
+            # есть ли в репорте данные
             plm_sheet = wb["PLM_TEM_Report"]
+            if plm_sheet.max_row < 6:
+                self.log_message(f"  ⊘ Лист PLM_TEM_Report пустой")
+                wb.close()
+                continue
+                
+            counter += 1
+            # 1. Берем информацию из M1
             project_info = plm_sheet["M1"].value
             date_analyzed = plm_sheet["M2"].value
+
             
             # 2. Берем информацию из B3 листа SampleAnalyses
             analyst_info = None
@@ -144,22 +151,13 @@ class QCProcessorApp:
                         analyst_info = str(sample_sheet["B3"].value).strip()
                 else:
                     analyst_info = "No Analyst"
+            else: 
+                analyst_info = "No Analyst"
             
             # 3. Считаем строки
             plm_count = 0
             nob_count = 0
             tem_count = 0
-            
-            '''for row in plm_sheet.iter_rows(min_row=6, min_col=7, max_col=7):
-                cell_value = row[0].value
-                if cell_value is not None:
-                    cell_str = str(cell_value).strip()
-                    if cell_str in ("198.1", "198,1"):
-                        plm_count += 1
-                    elif cell_str in ("198.6", "198,6"):
-                        nob_count += 1
-                    elif cell_str in ("198.4", "198,4"):
-                        tem_count += 1'''
 
             for row in plm_sheet.iter_rows(min_row=6, min_col=9, max_col=17):
                 # Колонка I (индекс 0, т.к. min_col=9)
@@ -187,24 +185,20 @@ class QCProcessorApp:
             
             int_month_analyzed = None
             if date_analyzed:
-                try:
-                    int_month_analyzed = date_analyzed.month
-                except:
-                    int_month_analyzed = 0
+                # date_analyzed = date(date_analyzed)
+                print(date_analyzed)
             else:
-                try:
-                    int_month_analyzed = int(project_info[2:4])
-                except:
-                    int_month_analyzed = 0
+                date_analyzed = None
 
             results.append({
                 "number": counter,
                 "project": project_info,
+                "date": date_analyzed, 
                 "analyst_info": analyst_info,
                 "plm_count": plm_count,
                 "nob_count": nob_count,
                 "tem_count": tem_count,
-                "month":  int_month_analyzed
+                "month": None
             })
             
             self.log_message(f"  ✓ PLM: {plm_count}, NOB: {nob_count}, TEM: {tem_count}")
@@ -226,13 +220,14 @@ class QCProcessorApp:
         out_sheet = out_wb.active
         out_sheet.title = "QC Data"
         
-        headers = ["Number", "Project", "Analyst", "plm_count", "nob_count", "tem_count", "Month"]
+        headers = ["Number", "Project", "Date", "Analyst", "plm_count", "nob_count", "tem_count", "Month"]
         out_sheet.append(headers)
         
         for r in results:
             out_sheet.append([
                 r["number"],
                 r["project"],
+                r["date"],
                 r["analyst_info"],
                 r["plm_count"],
                 r["nob_count"],
