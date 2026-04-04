@@ -218,24 +218,68 @@ class QCProcessorApp:
         
         output_file = Path(self.folder_path) / "qc_data.xlsx"
         
-        # result_wb = Workbook()
-        # result_wb.save(output_file)
-
-        raw_df = pd.DataFrame(results, columns=["number", "project", "date", 
-                                            "analyst_info", "plm_count", "nob_count", 
-                                            "tem_count", "month"])
+        result_wb = Workbook()
+        sheet_raw = result_wb.active
+        sheet_raw.title = "QC Raw Data"
         
+        headers = ["number", "project", "date", "analyst", "plm_count", "nob_count", "tem_count", "month"]
+        sheet_raw.append(headers)
+        
+        for r in results:
+            sheet_raw.append([
+                r["number"],
+                r["project"],
+                r["date"],
+                r["analyst_info"],
+                r["plm_count"],
+                r["nob_count"],
+                r["tem_count"],
+                r["month"]
+            ])
+        
+
+        result_wb.save(output_file)
+
+        raw_df = pd.read_excel(output_file, sheet_name='QC Raw Data')
         raw_df['date'] = pd.to_datetime(raw_df['date']).dt.date
         raw_df = raw_df.sort_values(by='date')
-
-        with pd.ExcelWriter(output_file, engine='openpyxl', mode='w') as writer:
+        
+        with pd.ExcelWriter(output_file, engine='openpyxl', mode='a') as writer:
             raw_df.to_excel(writer, sheet_name='raw_sheet', index=False)
 
-            for analyst in raw_df['analyst_info'].unique():
-                analyst_df = raw_df[raw_df['analyst_info'] == analyst]
-                analyst_df = analyst_df.sort_values(by='date')
-                analyst_df = analyst_df.groupby('date', as_index=False)[['plm_count', 'nob_count', 'tem_count']].sum()
-                analyst_df.to_excel(writer, sheet_name=f'{analyst}_sum', index=False)
+            for analyst in raw_df['analyst'].unique():
+                        analyst_df = raw_df[raw_df['analyst'] == analyst]
+                        analyst_df = analyst_df.sort_values(by='date')
+                        analyst_df = analyst_df.groupby('date', as_index=False)[['plm_count', 'nob_count', 'tem_count']].sum()
+                        analyst_df.to_excel(writer, sheet_name=f'{analyst}_sum', index=False)
+
+
+        result_wb = load_workbook(output_file)
+        if 'QC Raw Data' in result_wb.sheetnames:
+            print('test')
+            sheet_to_delete = result_wb['QC Raw Data']
+            result_wb.remove(sheet_to_delete)
+
+        
+        result_wb.save(output_file)
+
+        # result_wb.remove('QC Raw Data')
+        # result_wb.save(output_file)
+        # raw_df = pd.DataFrame(results, columns=["number", "project", "date", 
+        #                                     "analyst_info", "plm_count", "nob_count", 
+        #                                     "tem_count", "month"])
+        
+        # raw_df['date'] = pd.to_datetime(raw_df['date']).dt.date
+        # raw_df = raw_df.sort_values(by='date')
+
+        # with pd.ExcelWriter(output_file, engine='openpyxl', mode='w') as writer:
+        #     raw_df.to_excel(writer, sheet_name='raw_sheet', index=False)
+
+        #     for analyst in raw_df['analyst_info'].unique():
+        #         analyst_df = raw_df[raw_df['analyst_info'] == analyst]
+        #         analyst_df = analyst_df.sort_values(by='date')
+        #         analyst_df = analyst_df.groupby('date', as_index=False)[['plm_count', 'nob_count', 'tem_count']].sum()
+        #         analyst_df.to_excel(writer, sheet_name=f'{analyst}_sum', index=False)
         
         self.log_message("  ✓ Лист 'По аналитикам' создан")
         self.log_message("  ✓ Лист 'По месяцам' создан")
