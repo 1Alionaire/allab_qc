@@ -7,6 +7,42 @@ import pandas as pd
 from datetime import date
 import json
 
+plm_analysis_columns = ['Client ID', 'Lab ID', 'Layer', 
+                        'Color', 'Texture', 'Homogeneity', 'Morphology', 
+                        'RI II Type 1', 'RI II Type 2',
+                        'RI ┴ Type 1',  'RI ┴ Type 2', 
+                        'Sign of \nElongation Type 1', 'Sign of \nElongation Type 2', 
+                        'Extinction \nAngle Type 1', 'Extinction \nAngle Type 2', 
+                        'Pleochroism /\nColor Type 1', 'Pleochroism /\nColor Type 2', 
+                        'Birefringence Type 1', 'Birefringence Type 2', 
+                        'Other Fibers', 'Property', '% Non-\nAsbestos',
+                        'Type 1', 'Point 1', 
+                        'Type 2', 'Point 2', 
+                        'Type 3', 'Point 3', 
+                        'Type 4', 'Point 4', 
+                        'Type 5', 'Point 5', 
+                        'Type 6', 'Point 6 ', 
+                        'Type 7', 'Point 7', 
+                        'Type 8', 'Point 8', 
+                        'Percent For type 1', 'Asb Type For type 1',
+                        'Percent For type 2', 'Asb Type For type 2',
+                        'Vermiculite', 'Method', 'Undesolved Materials', 'Total Residue']
+
+tem_analysis_columns = ['Client ID', 'Lab ID', 'Layer',  'Homogeneity',  'Residue', 
+                        'Point Type 1', 'Percent Type 1', 'Asb Type Type 1', 
+                         'Point Type 2', 'Percent Type 2', 'Asb Type Type 2', 
+                         'Microscope ', 'Eccentricity ', 'Grid Pre', 'Grid Box #',
+                         'Grid Box ID 1', 'Grid Box ID 2', 'Method', 'NA or PS']
+
+def find_project_in_sample(inp_sample_id):
+    final_result = ''
+    count = 2
+    for i in inp_sample_id:
+        if count == 0:
+            return final_result[:-1]
+        final_result += i
+        if i == '-':
+            count -= 1
 
 class QCProcessorApp:
     def __init__(self, root):
@@ -91,6 +127,7 @@ class QCProcessorApp:
     def process_files(self):
         """Основная логика обработки файлов"""
         results = []
+        result_json = {}
         counter = 0
         
         # Ищем все Excel-файлы
@@ -131,17 +168,41 @@ class QCProcessorApp:
                 continue
             
             # есть ли в репорте данные
-            plm_sheet = wb["PLM_TEM_Report"]
-            if plm_sheet.max_row < 6:
+            plm_result_sheet = wb["PLM_TEM_Report"]
+            if plm_result_sheet.max_row < 6:
                 self.log_message(f"  ⊘ Лист PLM_TEM_Report пустой")
                 wb.close()
                 continue
-                
+
             counter += 1
             # 1. Берем информацию из M1
-            project_info = plm_sheet["M1"].value
-            date_analyzed = plm_sheet["M2"].value
+            project_info = plm_result_sheet["M1"].value
+            date_analyzed = plm_result_sheet["M2"].value
+
+            if project_info is not None:
+                if str(project_info).strip() != '':
+                    if str(project_info) not in str(filepath):
+                        project_info = find_project_in_sample(str(plm_result_sheet["B6"].value))
+
+            if project_info is None or str(project_info).strip() == '':
+                project_info = str(plm_result_sheet["B6"].value)[:-2]
+
+
+            print(project_info)
+            if project_info in result_json:
+                self.log_message(f" Already Has")
+                wb.close()
+                continue
             
+            if project_info is None:
+                continue
+            
+            if str(project_info) == 'No':
+                continue
+
+            if str(project_info) in ['260407-106', '260417-4', '260508-22', '260514-17', '260525-18']:
+                continue
+
             # 2. Берем информацию из B3 листа SampleAnalyses
             analyst_info = None
             if "SampleAnalyses" in wb.sheetnames:
@@ -160,14 +221,15 @@ class QCProcessorApp:
             tem_count = 0
             total_count = 0
 
-            for row in plm_sheet.iter_rows(min_row=6, min_col=2, max_col=2):
+            for row in plm_result_sheet.iter_rows(min_row=6, min_col=2, max_col=2):
                 cell_i = row[0].value
                 if cell_i is not None:
                     cell_str = str(cell_i).strip()
-                    if cell_str and project_info in cell_str:
-                        total_count += 1
+                    if (cell_str):
+                        if (cell_str) and (project_info in cell_str):
+                            total_count += 1
 
-            for row in plm_sheet.iter_rows(min_row=6, min_col=9, max_col=17):
+            for row in plm_result_sheet.iter_rows(min_row=6, min_col=9, max_col=17):
                 # Колонка I (индекс 0, т.к. min_col=9)
                 cell_i = row[0].value
                 if cell_i is not None:
@@ -189,26 +251,74 @@ class QCProcessorApp:
                     if cell_str and cell_str != "Not Analyzed":
                         tem_count += 1
             
+            all_plm_data = []
+            all_nob_data = []
+
+            if "SampleAnalyses" in wb.sheetnames:
+                plm_sample_sheet = wb["SampleAnalyses"]
+                
+                if plm_sample_sheet['A8'].value is not None:
+                    for row in plm_sample_sheet.iter_rows(min_row=8, max_row=(8 + total_count - 1), min_col=1, max_col=46, values_only=True):
+                        plm_analysis_json = {}
+                        nob_analysis_json = {}
+                        if row[0] is None:
+                            continue
+                        if str(row[43]).strip() == '198.1' or str(row[43]).strip() == '198,1':
+                            for col in range(46):
+                                # if row[col] is not None:
+                                plm_analysis_json[plm_analysis_columns[col]] = str(row[col])
+                        else:
+                            for col in range(46):
+                                # if row[col] is not None:
+                                nob_analysis_json[plm_analysis_columns[col]] = str(row[col])
+
+                        if  len(plm_analysis_json) > 0:
+                            all_plm_data.append(plm_analysis_json)
+
+                        if len(nob_analysis_json) > 0:
+                            all_nob_data.append(nob_analysis_json)
+                        
+
+            all_tem_data = []
+            if "TEM_Calculation" in wb.sheetnames:
+                tem_sample_sheet = wb["TEM_Calculation"]
+
+                if tem_sample_sheet['A6'].value is not None:
+                    for row in tem_sample_sheet.iter_rows(min_row=6, max_row=(6 + total_count - 1), min_col=1, max_col=19, values_only=True):
+                        tem_analysis_json = {}
+                        if row[0] is None:
+                            continue
+                        elif row[18] == 'PS':
+                            continue
+                        else:
+                            for col in range(19):
+                                tem_analysis_json[tem_analysis_columns[col]] = row[col]
+                        all_tem_data.append(tem_analysis_json)
+
             wb.close()
             
-            int_month_analyzed = None
             if date_analyzed:
                 pass
             else:
                 date_analyzed = None
-            results.append({
-                "number": counter,
-                "project": project_info,
-                "date": date_analyzed, 
-                "analyst": analyst_info,
-                "plm_count": plm_count,
-                "nob_count": nob_count,
-                "tem_count": tem_count,
-                "total_count": total_count, 
-                "file_name" : filepath
-            })
+
+            result_json[project_info] = {"date": str(date_analyzed), 
+                                         "analyst": analyst_info, 
+                                         "plm_count": plm_count, 
+                                         "nob_count": nob_count, 
+                                         "tem_count": tem_count,
+                                         "total_count": total_count,
+                                          "file_name" : str(filepath), 
+                                          "plm_analysis": all_plm_data,
+                                          'nob_analysis': all_nob_data, 
+                                          "tem_analysis": all_tem_data }
             
-            self.log_message(f"  ✓ PLM: {plm_count}, NOB: {nob_count}, TEM: {tem_count}")
+            output_file = Path(self.folder_path) / "qc_raw_data.json"
+
+        with open(output_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(result_json, indent=4, ensure_ascii=False))
+
+        self.log_message(f"  ✓ PLM: {plm_count}, NOB: {nob_count}, TEM: {tem_count}")
         
         if not results:
             self.update_status("Готово (нет данных)")
@@ -222,61 +332,26 @@ class QCProcessorApp:
         self.log_message("\nСохраняю результат...")
         
         output_file = Path(self.folder_path) / "qc_data.xlsx"
+    
         
-        result_wb = Workbook()
-        sheet_raw = result_wb.active
-        sheet_raw.title = "QC Raw Data"
-        
-        headers = ["number", "project", "date", "analyst", "plm_count", "nob_count", "tem_count", "total_count", "file_name"]
-        sheet_raw.append(headers)
-        for r in results:
-            sheet_raw.append([
-                r["number"],
-                r["project"],
-                r["date"],
-                r["analyst"],
-                r["plm_count"],
-                r["nob_count"],
-                r["tem_count"],
-                r["total_count"],
-                str(r['file_name'])
-            ])
+        # headers = ["number", "project", "date", "analyst", "plm_count", "nob_count", "tem_count", "total_count", "file_name"]
+        # sheet_raw.append(headers)
+        # for r in results:
+        #     sheet_raw.append([
+        #         r["number"],
+        #         r["project"],
+        #         r["date"],
+        #         r["analyst"],
+        #         r["plm_count"],
+        #         r["nob_count"],
+        #         r["tem_count"],
+        #         r["total_count"],
+        #         str(r['file_name'])
+        #     ])
         
 
-        result_wb.save(output_file)
-
-        raw_df = pd.read_excel(output_file, sheet_name='QC Raw Data')
-        raw_df['date'] = pd.to_datetime(raw_df['date']).dt.date
-        raw_df = raw_df.sort_values(by='date')
-
-
-        ws_raw = result_wb.create_sheet(title='raw_sheet')
-        # Заголовки
-        ws_raw.append(headers)
         
-        for number, row in raw_df.iterrows():
-            ws_raw.append([number, row["project"], row["date"],row["analyst"],row["plm_count"],row["nob_count"],row["tem_count"],row["total_count"],row["file_name"]]),
-
-        for analyst in raw_df['analyst'].unique():
-            analyst_df = raw_df[raw_df['analyst'] == analyst]
-            analyst_df = analyst_df.sort_values(by='date')
-            analyst_df = analyst_df.groupby('date', as_index=False)[['plm_count', 'nob_count', 'tem_count']].sum()
-            ws_analyst = result_wb.create_sheet(title=f'{analyst}_sum')
-            ws_analyst.append(["date", "plm_count", "nob_count", "tem_count"])
-
-            for item, row in analyst_df.iterrows():
-                ws_analyst.append([row['date'], row["plm_count"],row["nob_count"],row["tem_count"]])
-
-
-        result_wb.save(output_file)
-
-        result_wb = load_workbook(output_file)
-        if 'QC Raw Data' in result_wb.sheetnames:
-            sheet_to_delete = result_wb['QC Raw Data']
-            result_wb.remove(sheet_to_delete)
-
-        
-        result_wb.save(output_file)
+        # result_wb.save(output_file)
       
         self.log_message("  ✓ Лист 'По аналитикам' создан")
         self.log_message("  ✓ Лист 'По месяцам' создан")

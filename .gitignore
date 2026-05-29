@@ -2,3 +2,10 @@
 *.xls
 *.xlsx
 *.xlsm
+all_plm/
+venv/
+build/
+*.exe
+*.jsonl
+*.json
+*.spec

@@ -1,0 +1,155 @@
+2026-04-04 21:48:16,655 - Raw DataFrame:
+   number    project       date  ... nob_count  tem_count  month
+0       1  250708-41 2025-07-08  ...        23         23    NaN
+1       2   250710-5 2025-07-11  ...         0          0    NaN
+2       3   250710-6 2025-07-11  ...         5          5    NaN
+3       4   250710-7 2025-07-10  ...         9          4    NaN
+4       5   250710-8 2025-07-10  ...        13          6    NaN
+
+[5 rows x 8 columns]
+2026-04-04 21:48:16,668 - Appending row to raw_sheet: number                1
+project       250708-41
+date         2025-07-08
+analyst              AB
+plm_count            16
+nob_count            23
+tem_count            23
+month               NaN
+Name: 0, dtype: object
+2026-04-04 21:48:16,671 - Appending row to raw_sheet: number                4
+project        250710-7
+date         2025-07-10
+analyst              AB
+plm_count             0
+nob_count             9
+tem_count             4
+month               NaN
+Name: 3, dtype: object
+2026-04-04 21:48:16,672 - Appending row to raw_sheet: number                5
+project        250710-8
+date         2025-07-10
+analyst      No Analyst
+plm_count            10
+nob_count            13
+tem_count             6
+month               NaN
+Name: 4, dtype: object
+2026-04-04 21:48:16,673 - Appending row to raw_sheet: number                2
+project        250710-5
+date         2025-07-11
+analyst              AB
+plm_count            14
+nob_count             0
+tem_count             0
+month               NaN
+Name: 1, dtype: object
+2026-04-04 21:48:16,673 - Appending row to raw_sheet: number                3
+project        250710-6
+date         2025-07-11
+analyst              AB
+plm_count             9
+nob_count             5
+tem_count             5
+month               NaN
+Name: 2, dtype: object
+2026-04-04 21:48:16,674 - Appending row to raw_sheet: number                6
+project       250716-57
+date         2025-07-17
+analyst              OV
+plm_count             3
+nob_count             0
+tem_count             0
+month               NaN
+Name: 5, dtype: object
+2026-04-04 21:48:16,675 - Appending row to raw_sheet: number                7
+project       250716-58
+date         2025-07-17
+analyst              OV
+plm_count             6
+nob_count             2
+tem_count             2
+month               NaN
+Name: 6, dtype: object
+2026-04-04 21:48:16,676 - Appending row to raw_sheet: number                8
+project       250716-59
+date         2025-07-17
+analyst              OV
+plm_count            15
+nob_count             0
+tem_count             0
+month               NaN
+Name: 7, dtype: object
+2026-04-04 21:48:16,676 - Appending row to raw_sheet: number                9
+project       250722-10
+date         2025-07-22
+analyst              OV
+plm_count             1
+nob_count            10
+tem_count             9
+month               NaN
+Name: 8, dtype: object
+2026-04-04 21:48:16,676 - Appending row to raw_sheet: number               10
+project       250722-11
+date         2025-07-22
+analyst              OV
+plm_count             0
+nob_count             1
+tem_count             1
+month               NaN
+Name: 9, dtype: object
+2026-04-04 21:48:16,676 - Appending row to raw_sheet: number               11
+project        250722-9
+date         2025-07-22
+analyst              OV
+plm_count             0
+nob_count             8
+tem_count             8
+month               NaN
+Name: 10, dtype: object
+2026-04-04 21:48:16,676 - Appending row to raw_sheet: number               12
+project       250731-35
+date         2025-08-01
+analyst              AB
+plm_count            30
+nob_count            26
+tem_count            26
+month               NaN
+Name: 11, dtype: object
+2026-04-04 21:48:16,676 - Processing analyst: AB
+2026-04-04 21:48:16,676 - Appending row to AB_sum: date         2025-07-08
+plm_count            16
+nob_count            23
+tem_count            23
+Name: 0, dtype: object
+2026-04-04 21:48:16,676 - Appending row to AB_sum: date         2025-07-10
+plm_count             0
+nob_count             9
+tem_count             4
+Name: 1, dtype: object
+2026-04-04 21:48:16,676 - Appending row to AB_sum: date         2025-07-11
+plm_count            23
+nob_count             5
+tem_count             5
+Name: 2, dtype: object
+2026-04-04 21:48:16,676 - Appending row to AB_sum: date         2025-08-01
+plm_count            30
+nob_count            26
+tem_count            26
+Name: 3, dtype: object
+2026-04-04 21:48:16,710 - Processing analyst: No Analyst
+2026-04-04 21:48:16,716 - Appending row to No Analyst_sum: date         2025-07-10
+plm_count            10
+nob_count            13
+tem_count             6
+Name: 0, dtype: object
+2026-04-04 21:48:16,726 - Processing analyst: OV
+2026-04-04 21:48:16,741 - Appending row to OV_sum: date         2025-07-17
+plm_count            24
+nob_count             2
+tem_count             2
+Name: 0, dtype: object
+2026-04-04 21:48:16,742 - Appending row to OV_sum: date         2025-07-22
+plm_count             1
+nob_count            19
+tem_count            18
+Name: 1, dtype: object
