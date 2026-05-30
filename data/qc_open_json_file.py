@@ -3,10 +3,44 @@ from pathlib import Path
 import math
 import random
 
+def random_calc_point_asb(inp_str):
+    if inp_str == '50':
+        return '50'
+    operation = random.choice(['-', '+'])
+    if operation == '-':
+        value = random.choice([1, 2, 3])
+        return str(int(inp_str) - value)
+    else:
+        value = random.choice([1, 2, 3])
+        if (int(inp_str) + value) < 50:
+            return str(int(inp_str) + value)
+        else:
+            return '49'
 
-def get_random_sample_from_project(projects_list):
-    return random.choice(projects_list)
+analysts = ['OV', 'KK', 'AB', 'VC']
+def get_plm_nob_random_sample_from_project(samples_list, type, analyst):
+    other_analysts = analysts.remove(analyst)
+    rep_analyst = random.choice(other_analysts)
 
+    original_sample = random.choice(samples_list)
+    duplicate_sample = original_sample
+    if type == 'dup':
+        duplicate_sample['Client ID'] = 'D' + original_sample['Client ID'] + rep_analyst
+        if original_sample['Type 1'] == 'PS':
+            original_index = samples_list.index(original_sample)
+            for i in range((original_index - 1), -1, -1):
+                if samples_list[i]['Type 1'] != 'PS':
+                    for j in range(1, 9):
+                        if duplicate_sample[f'Type {j}'] != 'None':
+                            duplicate_sample[f'Type {j}'] = samples_list[i][f'Type {j}']
+                            duplicate_sample[f'Point {j}'] = random_calc_point_asb(samples_list[i][f'Point {j}'])
+                   
+        
+
+        return duplicate_sample
+    else:
+        duplicate_sample['Client ID'] = 'R' + original_sample['Client ID'] + rep_analyst
+        return duplicate_sample
 
 analyst = 'VC'
 types_analysis = ["plm_count", "nob_count","tem_count",]
@@ -32,7 +66,7 @@ for record in grouped_data_analysts:
     # how many blank samples per day accroding audit
     limit = 100
     # total count samples per day. 
-    plm_total_samples = 0
+    nob_total_samples = 0
     # filter all projects by day
     projects_by_date = {key: value for key, value in data.items() if value['date'] == record['date'] }
     # this counter need only for first blank sample in first project of the day
@@ -43,46 +77,54 @@ for record in grouped_data_analysts:
     for project, project_info in projects_by_date.items():
         final_project_info = {'plm_rep_samples': [], 'plm_dup_samples': [], 
                         'nob_rep_samples': [], 'nob_dup_samples': [],
-                        'tem_rep_samples': [], 'tem_dup_samples': [],}
+                        'tem_rep_samples': [], 'tem_dup_samples': [], 
+                        'file_name':project_info['file_name'], 'analyst':project_info['analyst']}
 
         if project_info['plm_count'] > 0:
-            duplicate_samples_amount = math.ceil(project_info['plm_count'] / 50)
-            for i in range(duplicate_samples_amount):
-                final_project_info['plm_dup_samples'].append(get_random_sample_from_project(project_info['plm_analysis']))
-
-            replicate_samples_amount = math.ceil(project_info['plm_count'] / 15)
-            for i in range(replicate_samples_amount):
-                final_project_info['plm_rep_samples'].append(get_random_sample_from_project(project_info['plm_analysis']))
-
+            pass
 
         if project_info['nob_count'] > 0:
-            duplicate_samples_amount = math.ceil(project_info['nob_count'] / 50)
-            for i in range(duplicate_samples_amount):
-                final_project_info['nob_dup_samples'].append(get_random_sample_from_project(project_info['nob_analysis']))
-
-            replicate_samples_amount = math.ceil(project_info['nob_count'] / 15)
-            for i in range(replicate_samples_amount):
-                final_project_info['nob_rep_samples'].append(get_random_sample_from_project(project_info['nob_analysis']))
-
-            
-            # sum samples before adding samples from current project
-            before = plm_total_samples
-            # sum samples after adding samples from current project
+            # general
+            before = nob_total_samples
             after = before + project_info['nob_count']
-            # divide by samples amount how many samples before and after 
-            blanks_before = before // limit
-            blanks_after = after // limit
-            # how many blanks? difference between before and after
+
+            # counting blanks
+            blanks_before = before // 100
+            blanks_after = after // 100
             blanks_to_add = blanks_after - blanks_before
-            # if first project of the day - it must be one blank
+
+            # counting replicates
+            replicates_before = before // 15
+            replicates_after = after // 15
+            replicates_to_add = replicates_after - replicates_before
+
+            duplicates_before = before // 50
+            duplicates_after = after // 50
+            duplicates_to_add = duplicates_after - duplicates_before
+
             if counter == 0:
-                blanks_to_add = 1
-            #add result
-            final_project_info['blank_nob_count'] = blanks_to_add
-            # new total amount samples per day
-            plm_total_samples = after
-            # increase counter for day
-            counter+=1
+                blanks_to_add +=1
+                replicates_to_add += 1
+                duplicates_to_add += 1
+
+            print('=' * 25)
+            print(project_info['date'])
+            print(f'before: {before}')
+            print(f'after: {after}')
+            print('-' * 25)
+            print(f'blanks_before: {blanks_before}')
+            print(f'blanks_after: {blanks_after}')
+            print(f'blanks_to_add: {blanks_to_add}')
+            print('-' * 25)
+            print(f'replicates_before: {replicates_before}')
+            print(f'replicates_after: {replicates_after}')
+            print(f'replicates_to_add: {replicates_to_add}')
+            print('-' * 25)
+            print(f'duplicates_before: {duplicates_before}')
+            print(f'duplicates_after: {duplicates_after}')
+            print(f'duplicates_to_add: {duplicates_to_add}')
+            
+
             if blanks_to_add > 0:
                 for i in range(blanks_to_add):
                     final_project_info['nob_rep_samples'].append({
@@ -133,8 +175,20 @@ for record in grouped_data_analysts:
                             "Undesolved Materials": "",
                             "Total Residue": ""
                         })
+                    
+            if replicates_to_add > 0:
+                for i in range(replicates_to_add):
+                    final_project_info['nob_rep_samples'].append(get_plm_nob_random_sample_from_project(project_info['nob_analysis'], 'rep', project_info['analyst']))
 
+            if duplicates_to_add > 0:
+                for i in range(duplicates_to_add):
+                    final_project_info['nob_dup_samples'].append(get_plm_nob_random_sample_from_project(project_info['nob_analysis'], 'dup', project_info['analyst']))
 
+            final_project_info['blank_nob_count'] = blanks_to_add
+            final_project_info['rep_nob_count'] = replicates_to_add
+            final_project_info['dup_nob_count'] = duplicates_to_add
+            nob_total_samples = after
+            counter+=1
         final_result[project] = final_project_info
 
 
