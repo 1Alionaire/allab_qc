@@ -199,6 +199,9 @@ class QCProcessorApp:
             
             if str(project_info) == 'No':
                 continue
+                
+            if 'Conflict' in str(project_info):
+                continue
 
             if str(project_info) in ['260407-106', '260417-4', '260508-22', '260514-17', '260525-18']:
                 continue
