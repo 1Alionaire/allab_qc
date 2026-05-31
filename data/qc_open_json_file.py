@@ -62,22 +62,22 @@ def get_plm_nob_random_sample_from_project(samples_list, type, analyst):
     else:
         duplicate_sample['Client ID'] = 'R' + original_sample['Client ID'] + rep_analyst
 
-    if original_sample['Percent For type 1'] == 'PS':
+    if original_sample['Type Asb 1 Option'] == 'PS':
         original_index = samples_list.index(original_sample)
         for i in range((original_index - 1), -1, -1):
             if samples_list[i]['Type 1'] != 'PS':
 
-                duplicate_sample['Percent For type 1'] = samples_list[i]['Percent For type 1']
-                duplicate_sample['Asb Type For type 1'] = samples_list[i]['Asb Type For type 1']
-                duplicate_sample['Percent For type 2'] = samples_list[i]['Percent For type 2']
-                duplicate_sample['Asb Type For type 2'] = samples_list[i]['Asb Type For type 2']
+                duplicate_sample['Type Asb 1 Option'] = samples_list[i]['Type Asb 1 Option']
+                duplicate_sample['Percent 1 Option'] = samples_list[i]['Percent 1 Option']
+                duplicate_sample['Type Asb 2 Option'] = samples_list[i]['Type Asb 2 Option']
+                duplicate_sample['Percent 2 Option'] = samples_list[i]['Percent 2 Option']
 
                 for j in range(1, 9):
                     if duplicate_sample[f'Type {j}'] != 'None':
                         duplicate_sample[f'Type {j}'] = samples_list[i][f'Type {j}']
                         duplicate_sample[f'Point {j}'] = samples_list[i][f'Point {j}'] #random_calc_point_asb(samples_list[i][f'Point {j}'])
 
-    if duplicate_sample['Percent For type 1'] != 'NAD':
+    if duplicate_sample['Type Asb 1 Option'] != 'NAD':
 
         for j in range(1, 9):
             if duplicate_sample[f'Type {j}'] != 'None':
@@ -115,12 +115,12 @@ def get_plm_nob_random_sample_from_project(samples_list, type, analyst):
             intermediate_percent_result = round((((4 + add_asb_glass) / sum_points) * 100), 2)
 
         if duplicate_sample['Method'] == '198.1':
-            duplicate_sample['Asb Type For type 1'] = intermediate_percent_result #Change key
+            duplicate_sample['Percent 1 Option'] = intermediate_percent_result #Change key
         else:
             print('NOB test')
             print(duplicate_sample['Total Residue'])
-            # TO DO: replace key Asb Type For type 1 for Percent For type 1
-            duplicate_sample['Asb Type For type 1'] = round(((intermediate_percent_result * float(duplicate_sample['Total Residue'])) / 100), 2) #change
+            # TO DO: replace key Percent 1 Option for Type Asb 1 Option
+            duplicate_sample['Percent 1 Option'] = round(((intermediate_percent_result * float(duplicate_sample['Total Residue'])) / 100), 2) #change
 
     return duplicate_sample
 
@@ -283,10 +283,10 @@ def make_samples_by_analyst(analyst, grouped_data_analysts):
                                 "Point 7": "",
                                 "Type 8": "",
                                 "Point 8": "",
-                                "Percent For type 1": "NAD",
-                                "Asb Type For type 1": "NAD",
-                                "Percent For type 2": "",
-                                "Asb Type For type 2": "",
+                                "Type Asb 1 Option": "NAD",
+                                "Percent 1 Option": "NAD",
+                                "Type Asb 2 Option": "",
+                                "Percent 2 Option": "",
                                 "Vermiculite": "ND",
                                 "Method": "198.6",
                                 "Undesolved Materials": "",
