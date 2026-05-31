@@ -24,8 +24,8 @@ plm_analysis_columns = ['Client ID', 'Lab ID', 'Layer',
                         'Type 6', 'Point 6 ', 
                         'Type 7', 'Point 7', 
                         'Type 8', 'Point 8', 
-                        'Percent For type 1', 'Asb Type For type 1',
-                        'Percent For type 2', 'Asb Type For type 2',
+                        'Type Asb 1 Option', 'Percent 1 Option',
+                        'Type Asb 2 Option', 'Percent 2 Option',
                         'Vermiculite', 'Method', 'Undesolved Materials', 'Total Residue']
 
 tem_analysis_columns = ['Client ID', 'Lab ID', 'Layer',  'Homogeneity',  'Residue', 
@@ -292,7 +292,7 @@ class QCProcessorApp:
                             continue
                         else:
                             for col in range(19):
-                                tem_analysis_json[tem_analysis_columns[col]] = row[col]
+                                tem_analysis_json[tem_analysis_columns[col]] = str(row[col])
                         all_tem_data.append(tem_analysis_json)
 
             wb.close()
