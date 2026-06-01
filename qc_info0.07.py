@@ -270,6 +270,7 @@ class QCProcessorApp:
 
         result_wb.save(output_file)
 
+
         result_wb = load_workbook(output_file)
         if 'QC Raw Data' in result_wb.sheetnames:
             sheet_to_delete = result_wb['QC Raw Data']
@@ -277,7 +278,7 @@ class QCProcessorApp:
 
         
         result_wb.save(output_file)
-      
+        
         self.log_message("  ✓ Лист 'По аналитикам' создан")
         self.log_message("  ✓ Лист 'По месяцам' создан")
         self.log_message("  ✓ Лист 'Аналитик-Месяц' создан")

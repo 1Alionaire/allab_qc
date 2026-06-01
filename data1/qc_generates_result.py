@@ -50,10 +50,6 @@ def get_tem_random_sample_from_project(samples_list, type, analyst):
 def get_plm_nob_random_sample_from_project(samples_list, type, analyst):
     rep_analyst = replicate_analyst(analyst)
 
-    # print(f'samples_list: {samples_list}')
-    # print(f'type: {type}')
-    # print(f'samples_list: {samples_list}')
-
     original_sample = random.choice(samples_list)
     duplicate_sample = copy.deepcopy(original_sample)
 
@@ -87,9 +83,6 @@ def get_plm_nob_random_sample_from_project(samples_list, type, analyst):
         intermediate_percent_result = 0
 
         for j in range(1, 5):
-            print('=' * 40)
-            print(duplicate_sample['Lab ID'])
-            print(duplicate_sample[f'Point {j}'])
             try:
                 int_point = int(duplicate_sample[f'Point {j}'])
             except:
@@ -99,9 +92,7 @@ def get_plm_nob_random_sample_from_project(samples_list, type, analyst):
         
         
         if sum_points < 200:
-            print(f'sum_points: {sum_points}')
             intermediate_percent_result = round(((4 / sum_points) * 100), 2)
-            print(f'intermediate_percent_result: {intermediate_percent_result}')
         else:
             add_asb_glass = 0
             for j in range(5, 9):
@@ -117,46 +108,58 @@ def get_plm_nob_random_sample_from_project(samples_list, type, analyst):
         if duplicate_sample['Method'] == '198.1':
             duplicate_sample['Percent 1 Option'] = intermediate_percent_result #Change key
         else:
-            print('NOB test')
-            print(duplicate_sample['Total Residue'])
             # TO DO: replace key Percent 1 Option for Type Asb 1 Option
             duplicate_sample['Percent 1 Option'] = round(((intermediate_percent_result * float(duplicate_sample['Total Residue'])) / 100), 2) #change
 
-    return duplicate_sample
+    if type == 'dup':
+        return {
+            'sample': original_sample['Client ID'],
+            '1st_analyst_name': analyst, 
+            '1st_analyst_asb_type': original_sample['Type Asb 1 Option'], 
+            '1st_analyst_asb_percent': original_sample['Percent 1 Option'], 
+            'dup_name': analyst, 
+            'dup_asb_type': duplicate_sample['Type Asb 1 Option'], 
+            'dup_asb_percent': duplicate_sample['Percent 1 Option'], 
+        }
+    else:
+        return {
+            'sample': original_sample['Client ID'],
+            '1st_analyst_name': analyst, 
+            '1st_analyst_asb_type': original_sample['Type Asb 1 Option'], 
+            '1st_analyst_asb_percent': original_sample['Percent 1 Option'], 
+            'rep_name': rep_analyst, 
+            'rep_asb_type': duplicate_sample['Type Asb 1 Option'], 
+            'rep_asb_percent': duplicate_sample['Percent 1 Option'], 
+        }
 
 def main_start():
-    result_to_export = {}
-
-    # for mac
-    grouped_date_file_path = Path(str(Path.cwd()) + '/analysts_grouped.json')
-    output_file_path = Path(str(Path.cwd()) + '/all_analyst_dup_data.json')
-    # for windows:
-    # grouped_date_file_path = Path(r"C:\Python\allab\allab_qc\data\analysts_grouped.json")
-    # output_file_path = Path(fr"C:\Python\allab\allab_qc\data\all_analyst_dup_data.json")
-
-    with grouped_date_file_path.open("r", encoding="utf-8") as f:
-        grouped_data_analysts = json.load(f) 
     
-    for enter_analyst in analysts:
-        result_to_export[enter_analyst] = make_samples_by_analyst(enter_analyst, grouped_data_analysts)
+    folder = Path(str(Path.cwd()) + '/monthly')
 
-    with open(output_file_path, "a", encoding="utf-8") as file:
-        json.dump(result_to_export, file, indent=2, ensure_ascii=False)
+    for file in folder.glob("*.json"):
+        result_to_export = {}
+
+        with file.open("r", encoding="utf-8") as f:
+            grouped_data = json.load(f)
+
+        for analyst, info in grouped_data.items():
+            print(f'analyst: {analyst}')
+            output_file_path = Path(str(Path.cwd()) + f'/{analyst}-{file.name}')
+
+            print(f'output_file_path: {output_file_path}')
+            result_to_export[analyst] = make_samples_by_analyst(info)
+            print(f'result_to_export : {result_to_export}')
+
+        with open(output_file_path, "a", encoding="utf-8") as file:
+            json.dump(result_to_export, file, indent=2, ensure_ascii=False)
 
 
-def make_samples_by_analyst(analyst, grouped_data_analysts):
+def make_samples_by_analyst(grouped_data_analysts):
     final_result = {}
 
-    # for mac
-    path = Path(str(Path.cwd()) + f'/{analyst}_data.jsonl')
-    # for windows
-    # path = Path(fr"C:\Python\allab\allab_qc\data\{analyst}_data.jsonl")
-    
-
+    path = Path(str(Path.cwd()) + '/qc_raw_data.json')
     with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)       
-
-    grouped_data_analysts = grouped_data_analysts[analyst]
+        data = json.load(f) 
 
     for record in grouped_data_analysts:
         # how many blank samples per day accroding audit
@@ -174,10 +177,12 @@ def make_samples_by_analyst(analyst, grouped_data_analysts):
 
         #iterate through all projects in this day
         for project, project_info in projects_by_date.items():
-            final_project_info = {'plm_rep_samples': [], 'plm_dup_samples': [], 
-                            'nob_rep_samples': [], 'nob_dup_samples': [],
-                            'tem_rep_samples': [], 'tem_dup_samples': [], 
-                            'file_name':project_info['file_name'], 'analyst':project_info['analyst']}
+            plm_rep_samples_massive = []
+            plm_dup_samples_massive = []
+            nob_rep_samples_massive = []
+            nob_dup_samples_massive = []
+            tem_rep_samples_massive = []
+            tem_dup_samples_massive = []
 
             if project_info['plm_count'] > 0:
                 before = plm_total_samples
@@ -198,12 +203,14 @@ def make_samples_by_analyst(analyst, grouped_data_analysts):
 
                 if duplicates_to_add > 0:
                     for i in range(duplicates_to_add):
-                        final_project_info['plm_dup_samples'].append(get_plm_nob_random_sample_from_project(project_info['plm_analysis'], 'dup', project_info['analyst']))
+                        # final_project_info['plm_dup_samples'].append(get_plm_nob_random_sample_from_project(project_info['plm_analysis'], 'dup', project_info['analyst']))
+                        plm_rep_samples_massive.append([project_info['date'], project, ])
 
                 if replicates_to_add > 0:
                     for i in range(replicates_to_add):
                         final_project_info['plm_rep_samples'].append(get_plm_nob_random_sample_from_project(project_info['plm_analysis'], 'rep', project_info['analyst']))
 
+                
 
                 final_project_info['rep_plm_count'] = replicates_to_add
                 final_project_info['dup_plm_count'] = duplicates_to_add

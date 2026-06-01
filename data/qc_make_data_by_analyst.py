@@ -14,26 +14,6 @@ output_path = Path(r"C:\Python\allab\allab_qc\data\analysts_grouped.json")
 
 result_list = []
 result = {}
-# df[["project_date_part", "project_seq"]] = (
-#     df["project_number"]
-#     .str.split("-", expand=True)
-#     .astype(int)
-# )
-
-# df_sorted = df.sort_values(
-#     by=["project_date_part", "project_seq"],
-#     ascending=[True, True]
-# )
-
-# Делаем данные по аналитикам
-# for analyst in analysts:
-#     filtered_df = df[df["analyst"] == analyst]
-#     filtered_sorted_df = filtered_df.sort_values(
-#         by=["project_date_part", "project_seq"],
-#         ascending=[True, True]
-#     )
-#     filtered_sorted_df.to_json(f"{analyst}_data.jsonl", orient="records", indent=4, force_ascii=False)
-
 
 for analyst in analysts:
     analyst_df = df[df["analyst"] == analyst]
