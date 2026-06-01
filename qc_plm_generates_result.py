@@ -167,6 +167,7 @@ def main_start():
                         if duplicates_to_add > 0:
                             # for i in range(duplicates_to_add):
                             samples_in_project.append(duplicates_to_add)
+                            
                         plm_total_samples = after
                         plm_counter+=1
 

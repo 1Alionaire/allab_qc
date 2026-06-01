@@ -3,7 +3,6 @@ from pathlib import Path
 import math
 import random
 import copy
-import os
 
 def random_calc_point_asb(inp_str):
     if inp_str == 'None':
@@ -85,12 +84,13 @@ def main_start():
     resource_dir = script_dir.parent / "resource"
 
     path = Path(resource_dir / 'qc_raw_data.json')
+    total_info = {}
 
     with path.open("r", encoding="utf-8") as f:
         raw_data = json.load(f) 
 
     for file in monthly_pivot_dir.glob("*.json"):
-        file_base_name = os.path.basename(file)
+        print(f'file: {file}')
 
         with file.open("r", encoding="utf-8") as f:
             grouped_data = json.load(f)
@@ -100,6 +100,7 @@ def main_start():
 
             data_per_analyst = []
             for record in info:
+                limit = 100     # how many blank samples per day accroding audit
                 plm_total_samples = 0       # total count samples per day. 
                 # filter all projects by day
                 projects_by_date = {key: value for key, value in raw_data.items() if (value['date'][:-8].strip() == record['date'] and value['plm_count'] > 0) }
@@ -144,8 +145,8 @@ def main_start():
 
             data_per_month[analyst] = data_per_analyst
 
-        output_file_path = script_dir /  file_base_name
-
+        output_file_path = script_dir / file
+        print(f'output_file_path: {output_file_path}')
         with open(output_file_path, "a", encoding="utf-8") as file:
             json.dump(data_per_month, file, indent=2, ensure_ascii=False)
 
