@@ -4,8 +4,19 @@ import math
 import random
 import copy
 import os
+import sys
+import logging
 
-from utilities.utilities import lab_id_sort_key, random_calc_point_asb, replicate_analyst
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR))
+
+from utils.utilities import lab_id_sort_key, random_calc_point_asb, replicate_analyst
+
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(message)s'
+)
 
 def get_plm_nob_random_sample_from_project(samples_list, analyst): 
     rep_analyst = replicate_analyst(analyst) 
@@ -15,14 +26,15 @@ def get_plm_nob_random_sample_from_project(samples_list, analyst):
         random_index = random.randint(0, len(samples_list_duplicate) - 1)
         removed_element = samples_list_duplicate.pop(random_index)
         if removed_element['Type Asb 1 Option'] != 'PS':
-            original_sample = removed_element
-            break
+            if removed_element['Method'] != 'None':
+                original_sample = removed_element
+                break
 
     duplicate_sample = copy.deepcopy(original_sample)        #random_calc_point_asb(samples_list[i][f'Point {j}'])
 
     duplicate_sample['Client ID'] = 'R' + original_sample['Client ID'] + rep_analyst
 
-    if duplicate_sample['Type Asb 1 Option'] != 'NAD':
+    if duplicate_sample['Type Asb 1 Option'] != 'NAD' and duplicate_sample['Type Asb 1 Option'] != 'None':
         for j in range(1, 9):
             if duplicate_sample[f'Type {j}'] != 'None':
                 duplicate_sample[f'Point {j}'] = random_calc_point_asb(original_sample[f'Point {j}'])
@@ -53,6 +65,12 @@ def get_plm_nob_random_sample_from_project(samples_list, analyst):
 
         duplicate_sample['Percent 1 Option'] = round(((intermediate_percent_result * float(duplicate_sample['Total Residue'])) / 100), 2) #change
 
+    if duplicate_sample['Type Asb 1 Option'] == 'None':
+        duplicate_sample['Type Asb 1 Option'] = 'NAD'
+        duplicate_sample['Percent 1 Option'] = 'NAD'
+
+        original_sample['Type Asb 1 Option'] = 'NAD'
+        original_sample['Percent 1 Option'] = 'NAD'
 
     return {
         'sample': original_sample['Client ID'],
@@ -92,10 +110,10 @@ def main_start():
                                                                                       and value['analyst'] == analyst }
                 nob_counter  = 0         # this counter need only for first blank sample in first project of the day
                 #iterate through all projects in this day
-
                 for project, project_info in projects_by_date.items():
-
+                    
                     if project_info['nob_count'] > 0 and project_info['nob_analysis']:
+                        logging.info(project)
                         before = nob_total_samples
                         after = before + project_info['nob_count']
 
@@ -124,8 +142,8 @@ def main_start():
                                     '1st_analyst_name': project_info['analyst'],
                                     '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
                                     '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
-                                    'dup_name': project_info['analyst'], 
-                                    'dup_asb_type': sample_duplicate['whole_duplicate']['Client ID'][-2:],
+                                    'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
+                                    'dup_asb_type': sample_duplicate['dup_asb_type'],
                                     'dup_asb_percent': sample_duplicate['dup_asb_percent'],
                                     'whole_original': sample_duplicate['whole_original'],
                                     'whole_duplicate': sample_duplicate['whole_duplicate']
@@ -165,7 +183,7 @@ def main_start():
         output_file_path = script_dir /  file_base_name
 
         with open(output_file_path, "a", encoding="utf-8") as file:
-            json.dump(data_per_month, file, indent=2, ensure_ascii=False)
+            json.dump(new_data_per_month, file, indent=2, ensure_ascii=False)
 
 if __name__ == "__main__":
     main_start()

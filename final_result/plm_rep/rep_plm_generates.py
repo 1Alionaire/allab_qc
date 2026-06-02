@@ -5,18 +5,17 @@ import random
 import copy
 import os
 import logging
+import sys
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR))
+from utils.utilities import lab_id_sort_key, random_calc_point_asb, replicate_analyst
 
 logging.basicConfig(
     filename='app.log',
     level=logging.INFO,
     format='%(asctime)s | %(levelname)s | %(message)s'
 )
-
-logging.info('Программа запущена')
-logging.warning('Это предупреждение')
-logging.error('Произошла ошибка')
-
-from utilities.utilities import lab_id_sort_key, random_calc_point_asb, replicate_analyst
 
 def get_plm_nob_random_sample_from_project(samples_list, analyst):
     rep_analyst = replicate_analyst(analyst) 
@@ -69,8 +68,8 @@ def get_plm_nob_random_sample_from_project(samples_list, analyst):
         'sample': original_sample['Client ID'],
         '1st_analyst_asb_type': original_sample['Type Asb 1 Option'], 
         '1st_analyst_asb_percent': original_sample['Percent 1 Option'], 
-        'rep_asb_type': duplicate_sample['Type Asb 1 Option'], 
-        'rep_asb_percent': duplicate_sample['Percent 1 Option'],
+        'dup_asb_type': duplicate_sample['Type Asb 1 Option'], 
+        'dup_asb_percent': duplicate_sample['Percent 1 Option'],
         'whole_original':  original_sample,
         'whole_duplicate': duplicate_sample
     }
@@ -132,8 +131,8 @@ def main_start():
                                     '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
                                     '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
                                     'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
-                                    'dup_asb_type': sample_duplicate['rep_asb_type'],
-                                    'dup_asb_percent': sample_duplicate['rep_asb_percent'],
+                                    'dup_asb_type': sample_duplicate['dup_asb_type'],
+                                    'dup_asb_percent': sample_duplicate['dup_asb_percent'],
                                     'whole_original': sample_duplicate['whole_original'],
                                     'whole_duplicate': sample_duplicate['whole_duplicate']
                                 }

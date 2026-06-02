@@ -4,8 +4,13 @@ import math
 import random
 import copy
 import os
+import sys
 
-from utilities.utilities import lab_id_sort_key, random_calc_point_asb
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR))
+from utils.utilities import lab_id_sort_key, random_calc_point_asb
+
+from utils.utilities import lab_id_sort_key, random_calc_point_asb
       
 def get_plm_nob_random_sample_from_project(samples_list, analyst): 
     samples_list_duplicate = copy.deepcopy(samples_list)
@@ -14,14 +19,15 @@ def get_plm_nob_random_sample_from_project(samples_list, analyst):
         random_index = random.randint(0, len(samples_list_duplicate) - 1)
         removed_element = samples_list_duplicate.pop(random_index)
         if removed_element['Type Asb 1 Option'] != 'PS':
-            original_sample = removed_element
-            break
+            if removed_element['Method'] != 'None':
+                original_sample = removed_element
+                break
 
     duplicate_sample = copy.deepcopy(original_sample)        #random_calc_point_asb(samples_list[i][f'Point {j}'])
 
     duplicate_sample['Client ID'] = 'D' + original_sample['Client ID'] + analyst
 
-    if duplicate_sample['Type Asb 1 Option'] != 'NAD':
+    if duplicate_sample['Type Asb 1 Option'] != 'NAD' and duplicate_sample['Type Asb 1 Option'] != 'None':
         for j in range(1, 9):
             if duplicate_sample[f'Type {j}'] != 'None':
                 duplicate_sample[f'Point {j}'] = random_calc_point_asb(original_sample[f'Point {j}'])
@@ -52,6 +58,12 @@ def get_plm_nob_random_sample_from_project(samples_list, analyst):
 
         duplicate_sample['Percent 1 Option'] = round(((intermediate_percent_result * float(duplicate_sample['Total Residue'])) / 100), 2) #change
 
+    if duplicate_sample['Type Asb 1 Option'] == 'None':
+        duplicate_sample['Type Asb 1 Option'] = 'NAD'
+        duplicate_sample['Percent 1 Option'] = 'NAD'
+        
+        original_sample['Type Asb 1 Option'] = 'NAD'
+        original_sample['Percent 1 Option'] = 'NAD'
 
     return {
         'sample': original_sample['Client ID'],
@@ -146,7 +158,7 @@ def main_start():
         output_file_path = script_dir /  file_base_name
 
         with open(output_file_path, "a", encoding="utf-8") as file:
-            json.dump(data_per_month, file, indent=2, ensure_ascii=False)
+            json.dump(new_data_per_month, file, indent=2, ensure_ascii=False)
 
 if __name__ == "__main__":
     main_start()

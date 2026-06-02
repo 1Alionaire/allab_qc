@@ -4,8 +4,11 @@ import math
 import random
 import copy
 import os
+import sys
 
-from utilities.utilities import lab_id_sort_key, random_calc_point_asb
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR))
+from utils.utilities import lab_id_sort_key, random_calc_point_asb
       
 def get_plm_nob_random_sample_from_project(samples_list, analyst): 
     samples_list_duplicate = copy.deepcopy(samples_list)
@@ -94,7 +97,7 @@ def main_start():
 
                 for project, project_info in projects_by_date.items():
 
-                    if project_info['plm_count'] > 0 and project_info['plm_analysis']:
+                    if project_info['plm_count'] > 0 and len(project_info['plm_analysis']):
                         before = plm_total_samples
                         after = before + project_info['plm_count']
 
