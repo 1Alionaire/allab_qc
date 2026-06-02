@@ -6,11 +6,11 @@ import copy
 import os
 import sys
 import logging
-from utils.utilities import lab_id_sort_key, random_calc_point_asb, replicate_analyst, calc_asb_percent
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
+from utils.utilities import lab_id_sort_key, random_calc_point_asb, replicate_analyst, calc_asb_percent
 
 logging.basicConfig(
     filename='app.log',

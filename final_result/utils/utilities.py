@@ -77,3 +77,27 @@ def calc_asb_percent(duplicate_sample):
                 pass
 
     return round((((add_asb_glass) / sum_points) * 100), 2)  
+
+def return_excel_filename(type, input_filename):
+    if type == 'PLM':
+        if '_2026-01' in str(input_filename):
+            return 'PLM_Jan.xlsx'
+        elif '_2026-02' in str(input_filename):
+            return 'PLM_Feb.xlsx'
+        elif '_2026-03' in str(input_filename):
+            return 'PLM_Mar.xlsx'
+        elif '_2026-04' in str(input_filename):
+            return 'PLM_Apr.xlsx'
+        elif '_2026-05' in str(input_filename):
+            return 'PLM_May.xlsx'
+    elif type == 'NOB':
+        if '_2026-01' in str(input_filename):
+            return 'NOB_Jan.xlsx'
+        elif '_2026-02' in str(input_filename):
+            return 'NOB_Feb.xlsx'
+        elif '_2026-03' in str(input_filename):
+            return 'NOB_Mar.xlsx'
+        elif '_2026-04' in str(input_filename):
+            return 'NOB_Apr.xlsx'
+        elif '_2026-05' in str(input_filename):
+            return 'NOB_May.xlsx'

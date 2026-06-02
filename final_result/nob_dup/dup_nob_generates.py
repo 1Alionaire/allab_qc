@@ -5,11 +5,11 @@ import random
 import copy
 import os
 import sys
-from utils.utilities import lab_id_sort_key, random_calc_point_asb, calc_asb_percent
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
-
+from utils.utilities import lab_id_sort_key, random_calc_point_asb, calc_asb_percent
       
 def get_plm_nob_random_sample_from_project(samples_list, analyst): 
     samples_list_duplicate = copy.deepcopy(samples_list)
