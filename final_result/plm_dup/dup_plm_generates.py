@@ -8,7 +8,7 @@ import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
-from utils.utilities import lab_id_sort_key, random_calc_point_asb
+from utils.utilities import lab_id_sort_key, random_calc_point_asb, calc_asb_percent
       
 def get_plm_nob_random_sample_from_project(samples_list, analyst): 
     samples_list_duplicate = copy.deepcopy(samples_list)
@@ -29,30 +29,7 @@ def get_plm_nob_random_sample_from_project(samples_list, analyst):
             if duplicate_sample[f'Type {j}'] != 'None':
                 duplicate_sample[f'Point {j}'] = random_calc_point_asb(original_sample[f'Point {j}'])
 
-        sum_points = 0
-        intermediate_percent_result = 0
-
-        for j in range(1, 5):
-            try:
-                int_point = int(duplicate_sample[f'Point {j}'])
-            except:
-                int_point = 50
-
-            sum_points +=  int_point
-        
-        if sum_points < 200:
-            intermediate_percent_result = round(((4 / sum_points) * 100), 2)
-        else:
-            add_asb_glass = 0
-            for j in range(5, 9):
-                if duplicate_sample[f'Point {j}'] == 'None' or duplicate_sample[f'Point {j}'] == '50':
-                    pass
-                else:
-                    add_asb_glass += 1
-                    sum_points += int(duplicate_sample[f'Point {j}'])
-        
-            intermediate_percent_result = round((((4 + add_asb_glass) / sum_points) * 100), 2)
-
+        intermediate_percent_result = calc_asb_percent(duplicate_sample)
         duplicate_sample['Percent 1 Option'] = intermediate_percent_result
 
 
