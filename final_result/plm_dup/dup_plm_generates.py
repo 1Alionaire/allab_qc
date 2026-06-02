@@ -5,27 +5,9 @@ import random
 import copy
 import os
 
-def random_calc_point_asb(inp_str):
-    if inp_str == 'None':
-        return 'None'
-    if inp_str == '50':
-        return '50'
-    operation = random.choice(['-', '+'])
-    if operation == '-':
-        value = random.choice([1, 2, 3])
-        return str(int(inp_str) - value)
-    else:
-        value = random.choice([1, 2, 3])
-        if (int(inp_str) + value) < 50:
-            return str(int(inp_str) + value)
-        else:
-            return '49'
+from utilities.utilities import lab_id_sort_key, random_calc_point_asb
       
-def get_plm_nob_random_sample_from_project(samples_list):
-
-    asb_types = ['Chrysotile', 'Amosite', 'Anthophillite', 
-                 'Actinolite', 'Crocidolite', 'Tremolite']
-    
+def get_plm_nob_random_sample_from_project(samples_list, analyst): 
     samples_list_duplicate = copy.deepcopy(samples_list)
     
     while True:
@@ -36,6 +18,8 @@ def get_plm_nob_random_sample_from_project(samples_list):
             break
 
     duplicate_sample = copy.deepcopy(original_sample)        #random_calc_point_asb(samples_list[i][f'Point {j}'])
+
+    duplicate_sample['Client ID'] = 'D' + original_sample['Client ID'] + analyst
 
     if duplicate_sample['Type Asb 1 Option'] != 'NAD':
         for j in range(1, 9):
@@ -102,12 +86,13 @@ def main_start():
             for record in info:
                 plm_total_samples = 0       # total count samples per day. 
                 # filter all projects by day
-                projects_by_date = {key: value for key, value in raw_data.items() if (value['date'][:-8].strip() == record['date'] and value['plm_count'] > 0) }
+                projects_by_date = {key: value for key, value in raw_data.items() if (value['date'][:-8].strip() == record['date'] 
+                                                                                      and value['plm_count'] > 0) 
+                                                                                      and value['analyst'] == analyst }
                 plm_counter  = 0         # this counter need only for first blank sample in first project of the day
                 #iterate through all projects in this day
 
                 for project, project_info in projects_by_date.items():
-                    samples_in_project = []
 
                     if project_info['plm_count'] > 0 and project_info['plm_analysis']:
                         before = plm_total_samples
@@ -121,33 +106,47 @@ def main_start():
                             duplicates_to_add += 1
 
                         if duplicates_to_add > 0:
-                            sample_duplicate = get_plm_nob_random_sample_from_project(project_info['plm_analysis'])
+                            for i in range(duplicates_to_add):
+                                sample_duplicate = get_plm_nob_random_sample_from_project(project_info['plm_analysis'], analyst)
 
-                            duplicate_record = {
-                                'date': project_info['date'], 
-                                'project': project,
-                                'sample': sample_duplicate['sample'],
-                                '1st_analyst_name': project_info['analyst'],
-                                '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
-                                '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
-                                'dup_name': project_info['analyst'], 
-                                'dup_asb_type': sample_duplicate['dup_asb_type'],
-                                'dup_asb_percent': sample_duplicate['dup_asb_percent'],
-                                'whole_original': sample_duplicate['whole_original'],
-                                'whole_duplicate': sample_duplicate['whole_duplicate']
-                            }
-                            data_per_analyst.append(duplicate_record)
-                            data_per_month['total'].append(duplicate_record)
+                                duplicate_record = {
+                                    'date': project_info['date'], 
+                                    'project': project,
+                                    'lab id': sample_duplicate['whole_original']['Lab ID'],
+                                    'file_name': project_info['file_name'],
+                                    'sample': sample_duplicate['sample'],
+                                    '1st_analyst_name': project_info['analyst'],
+                                    '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
+                                    '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
+                                    'dup_name': project_info['analyst'], 
+                                    'dup_asb_type': sample_duplicate['dup_asb_type'],
+                                    'dup_asb_percent': sample_duplicate['dup_asb_percent'],
+                                    'whole_original': sample_duplicate['whole_original'],
+                                    'whole_duplicate': sample_duplicate['whole_duplicate']
+                                }
+                                data_per_analyst.append(duplicate_record)
+                                data_per_month['total'].append(duplicate_record)
+
+                                for l in project_info['plm_analysis']:
+                                    if l['Client ID'] == duplicate_record['sample']:
+                                        project_info['plm_analysis'].remove(l)
 
                         plm_total_samples = after
                         plm_counter+=1
 
-            data_per_month[analyst] = data_per_analyst
+            data_per_analyst_sorted = sorted(data_per_analyst, key=lab_id_sort_key)
+            data_per_month[analyst] = data_per_analyst_sorted
+
+        unsorted_total_data = data_per_month['total']
+        sorted_total_data = sorted(unsorted_total_data, key=lab_id_sort_key)
+
+        new_data_per_month = {key: value for key, value in data_per_month.items() if key != 'total'}
+        new_data_per_month['total'] = sorted_total_data
 
         output_file_path = script_dir /  file_base_name
 
         with open(output_file_path, "a", encoding="utf-8") as file:
-            json.dump(data_per_month, file, indent=2, ensure_ascii=False)
+            json.dump(new_data_per_month, file, indent=2, ensure_ascii=False)
 
 if __name__ == "__main__":
     main_start()
