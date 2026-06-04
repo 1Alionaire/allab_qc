@@ -12,6 +12,14 @@ log_file = script_dir / "app.log"
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
 
+def get_resource_path(name):
+    """Путь к ресурсу — внутри .exe или рядом с .py."""
+    if getattr(sys, 'frozen', False):
+        return Path(sys._MEIPASS) / name   # внутри bundle
+    return Path(__file__).resolve().parent / name
+
+
+
 # Настраиваем логирование в файл
 logging.basicConfig(
     level=logging.INFO,
@@ -74,14 +82,15 @@ script_dir = Path(__file__).resolve().parent
 
 json_source_name = 'PLM_REP_test_data.json'
 
-path = Path(script_dir / json_source_name)
+json_path = get_resource_path('PLM_REP_test_data.json')
 
-with path.open("r", encoding="utf-8") as f:
+with json_path.open("r", encoding="utf-8") as f:
     all_samples = json.load(f)
 
 excel = win32.Dispatch("Excel.Application")
 excel.Visible = False
 excel.DisplayAlerts = False
+excel.AutomationSecurity = 1  # без Protected View
 
 chosen_company = 'ABC Environmental LLC'
 
@@ -89,45 +98,46 @@ chosen_company_data = [value for value in all_samples if (chosen_company in valu
                                                                             and '2026-03' in value['date']) ]
 logging.info(f'chosen_company_data: {chosen_company_data}')
 
-for sample in chosen_company_data:
-    logging.info(sample['file_name'])
+try:
+    for sample in chosen_company_data:
+        logging.info(sample['file_name'])
 
-    excel = None
-    wb = None
+        wb = None
+        try:
+            wb = excel.Workbooks.Open(str(Path(sample['file_name']).resolve()))
+            sample_analysis_ws = wb.Worksheets("SampleAnalyses")
 
-    try:
-        wb = excel.Workbooks.Open(str(sample['file_name'].resolve()))
-        sample_analysis_ws = wb.Worksheets("SampleAnalyses")
+            count = 8
+            last_sample_count = 0
 
-        count = 8
-        last_sample_count = 0
+            while True:
+                value = sample_analysis_ws.Range(f"B{count}").Value
 
-        while True:
-            value = sample_analysis_ws.Range(f"B{count}").Value
+                if value is not None and str(value).strip() != "":
+                    count += 1
+                else:
+                    last_sample_count = count
+                    break
 
-            if value is not None and str(value).strip() != "":
-                count += 1
-            else:
-                last_sample_count = count
-                break
+            for col, text_key in columns_dict.items():
+                if sample['whole_duplicate'][text_key] != 'None':
+                    sample_analysis_ws.Cells(last_sample_count, col).Value = sample['whole_duplicate'][text_key]
+                else:
+                    sample_analysis_ws.Cells(last_sample_count, col).Value = ''
 
-        for col, text_key in columns_dict.items():
-            if sample['whole_duplicate'][text_key] != 'None':
-                sample_analysis_ws.Cells(last_sample_count, col).Value = sample['whole_duplicate'][text_key]
-            else:
-                sample_analysis_ws.Cells(last_sample_count, col).Value = ''
-
-        wb.Save()
+            wb.Save()
 
 
-    except Exception as e:
-        logging.info(f"  ✗ Ошибка обработки файла: {e}")
+        except Exception as e:
+            logging.info(f"  ✗ Ошибка обработки файла: {e}")
 
-    finally:
-        if wb is not None:
-            wb.Close(SaveChanges=False)
-
-    if excel is not None:
-        excel.Quit()
+        finally:
+            if wb is not None:
+                try:
+                    wb.Close(SaveChanges=False)
+                except Exception:
+                    pass
+finally:
+    excel.Quit()
 
 # pyinstaller --onefile --windowed --name="Add_PLM_Replicates_0.01" first_iter.py
