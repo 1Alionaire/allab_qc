@@ -190,7 +190,7 @@ class QCProcessorApp:
                     for row in range(last_sample_count, 7, -1):
                         value = sample_analysis_ws.Range(f"B{row}").Value
 
-                        if str(sample_analysis_ws.Range(f"B{row}").Value).lower() == 'bl':
+                        if str(sample_analysis_ws.Range(f"A{row}").Value).lower() == 'bl':
                             for col in range(1, 47):
                                 sample_analysis_ws.Cells(row, col).Value = ""
                                 
@@ -199,7 +199,8 @@ class QCProcessorApp:
 
                         value = str(value).strip()
 
-                        if value in lab_id_dups_samples or value == "1":
+                        if value in lab_id_dups_samples:
+                            lab_id_dups_samples.remove(value)
                             for col in range(1, 47):
                                 sample_analysis_ws.Cells(row, col).Value = ""
 
@@ -244,4 +245,4 @@ if __name__ == "__main__":
     app = QCProcessorApp(root)
     root.mainloop()
 
-    # pyinstaller --onefile --windowed --name="QC_Collector" qc_info0.07.py
+    # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples" clean_duplicates_in_excel.py

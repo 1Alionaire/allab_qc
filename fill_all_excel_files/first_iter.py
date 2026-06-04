@@ -1,12 +1,24 @@
 from pathlib import Path
 import json
 import logging
-import pythoncom
+from openpyxl import load_workbook
+import win32com.client as win32
+from pathlib import Path
 
+script_dir = Path(__file__).resolve().parent
+log_file = script_dir / "app.log"
+
+# Удаляем старые обработчики logging
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
+# Настраиваем логирование в файл
 logging.basicConfig(
-    filename='app.log',
     level=logging.INFO,
-    format='%(asctime)s | %(levelname)s | %(message)s'
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    handlers=[
+        logging.FileHandler(str(log_file), encoding="utf-8")
+    ]
 )
 
 columns_dict = {
@@ -60,11 +72,9 @@ columns_dict = {
 
 script_dir = Path(__file__).resolve().parent
 
-json_source_name = 'PLM_REP_test_data'
+json_source_name = 'PLM_REP_test_data.json'
 
 path = Path(script_dir / json_source_name)
-
-
 
 with path.open("r", encoding="utf-8") as f:
     all_samples = json.load(f)
@@ -75,13 +85,12 @@ excel.DisplayAlerts = False
 
 chosen_company = 'ABC Environmental LLC'
 
-chosen_company_data = {key: value for key, value in all_samples.items() if (chosen_company in value['file_name'] 
-                                                                            and '2026-03' in value['date']) }
+chosen_company_data = [value for value in all_samples if (chosen_company in value['file_name'] 
+                                                                            and '2026-03' in value['date']) ]
 logging.info(f'chosen_company_data: {chosen_company_data}')
 
 for sample in chosen_company_data:
     logging.info(sample['file_name'])
-    pythoncom.CoInitialize()
 
     excel = None
     wb = None
@@ -121,4 +130,4 @@ for sample in chosen_company_data:
     if excel is not None:
         excel.Quit()
 
-#pyinstaller --onefile --windowed --name="Add_PLM_Replicates_0.01" first_iter.py
+# pyinstaller --onefile --windowed --name="Add_PLM_Replicates_0.01" first_iter.py
