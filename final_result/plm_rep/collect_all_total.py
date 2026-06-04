@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 import logging
 
+
 logging.basicConfig(
     filename='app.log',
     level=logging.INFO,
