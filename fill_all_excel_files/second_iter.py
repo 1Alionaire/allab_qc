@@ -18,8 +18,6 @@ def get_resource_path(name):
         return Path(sys._MEIPASS) / name   # внутри bundle
     return Path(__file__).resolve().parent / name
 
-
-
 # Настраиваем логирование в файл
 logging.basicConfig(
     level=logging.INFO,
@@ -80,9 +78,9 @@ columns_dict = {
 
 script_dir = Path(__file__).resolve().parent
 
-json_source_name = 'PLM_REP_test_data.json'
+json_source_name = 'PLM_DUP.json'
 
-json_path = get_resource_path('PLM_REP_test_data.json')
+json_path = get_resource_path(json_source_name)
 
 with json_path.open("r", encoding="utf-8") as f:
     all_samples = json.load(f)
@@ -118,12 +116,28 @@ try:
                 else:
                     last_sample_count = count
                     break
-            
-            for col, text_key in columns_dict.items():
-                if sample['whole_duplicate'][text_key] != 'None':
-                    sample_analysis_ws.Cells(last_sample_count, col).Value = sample['whole_duplicate'][text_key]
-                else:
-                    sample_analysis_ws.Cells(last_sample_count, col).Value = ''
+
+            if sample['whole_duplicate']:
+                for col, text_key in columns_dict.items():
+                    if sample['whole_duplicate'][text_key] != 'None':
+                        sample_analysis_ws.Cells(last_sample_count, col).Value = sample['whole_duplicate'][text_key]
+                    else:
+                        sample_analysis_ws.Cells(last_sample_count, col).Value = ''
+            else:
+                sample_analysis_ws.Cells(last_sample_count, 1).Value = 'bl'
+                sample_analysis_ws.Cells(last_sample_count, 2).Value = '1'
+                sample_analysis_ws.Cells(last_sample_count, 3).Value = ''
+                sample_analysis_ws.Cells(last_sample_count, 5).Value = ''
+                sample_analysis_ws.Cells(last_sample_count, 22).Value = '100'
+                sample_analysis_ws.Cells(last_sample_count, 23).Value = 'NAD'
+                sample_analysis_ws.Cells(last_sample_count, 24).Value = '50'
+                sample_analysis_ws.Cells(last_sample_count, 25).Value = 'NAD'
+                sample_analysis_ws.Cells(last_sample_count, 26).Value = '50'
+                sample_analysis_ws.Cells(last_sample_count, 27).Value = 'NAD'
+                sample_analysis_ws.Cells(last_sample_count, 28).Value = '50'
+                sample_analysis_ws.Cells(last_sample_count, 29).Value = 'NAD'
+                sample_analysis_ws.Cells(last_sample_count, 30).Value = '50'
+
 
             wb.Save()
 
