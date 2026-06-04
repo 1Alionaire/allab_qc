@@ -119,113 +119,125 @@ class QCProcessorApp:
     
     def process_files(self):
         """Основная логика обработки файлов"""
+
         results = []
-        result_json = {}
-        counter = 0
 
-        pythoncom.CoInitialize()
-
-        excel = win32.Dispatch("Excel.Application")
-        excel.Visible = False
-        excel.DisplayAlerts = False
-
-
-        # Ищем все Excel-файлы
         self.update_status("Поиск Excel-файлов...")
+
         all_files = []
         for ext in ("*.xlsx", "*.xlsm", "*.xls"):
             all_files.extend(Path(self.folder_path).rglob(ext))
-        
+
         if not all_files:
             self.update_status("Файлы не найдены")
             messagebox.showerror("Ошибка", "Excel-файлы не найдены в указанной папке")
             self.btn_run.config(state=NORMAL)
             self.btn_select.config(state=NORMAL)
             return
-        
+
         total_files = len(all_files)
         self.log_message(f"Найдено файлов: {total_files}")
-        
-        for i, filepath in enumerate(all_files):
-            # Обновляем прогресс
-            progress_value = (i + 1) / total_files * 100
-            self.progress['value'] = progress_value
-            
-            # Показываем текущий файл
-            self.update_status(f"Обработка: {filepath.name}")
-            self.log_message(f"[{i+1}/{total_files}] {filepath.name}")
-            
-            try:
-                wb = excel.Workbooks.Open(filepath)
-            except Exception as e:
-                self.log_message(f"  ✗ Ошибка открытия: {e}")
-                continue
 
-            if sheet_exists(wb, 'SampleAnalyses') == False:
-                continue
+        pythoncom.CoInitialize()
 
-            sample_analysis_ws = wb.Worksheets("SampleAnalyses")
+        excel = None
 
-            lab_id_samples = []
-            lab_id_dups_samples = []
-            count = 8
-            last_sample_count = 0
-            while True:
-                if (sample_analysis_ws.Range(f"B{count}").Value != None and 
-                    str(sample_analysis_ws.Range(f"B{count}").Value) != ''):
-                    lab_id_samples.append(str(sample_analysis_ws.Range(f"B{count}").Value))
-                    count += 1
-                else:
-                    last_sample_count = count
-                    break
-            
-            if has_duplicates(lab_id_samples):
-                lab_id_dups_samples = find_duplicates(lab_id_samples)
-            else:
-                continue
-            
-            for i in range(last_sample_count, 7, -1):
-                if str(sample_analysis_ws.Range(f"B{i}").Value) in lab_id_dups_samples:
-                    for j in range(1, 47):
-                        sample_analysis_ws.Cells(i, j).Value = ''
-                if str(sample_analysis_ws.Range(f"B{i}").Value) == '1':
-                    for j in range(1, 47):
-                        sample_analysis_ws.Cells(i, j).Value = ''
-            
-            wb.Save()
-            excel.Quit()
+        try:
+            excel = win32.Dispatch("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+
+            for file_index, filepath in enumerate(all_files):
+                progress_value = (file_index + 1) / total_files * 100
+                self.progress["value"] = progress_value
+
+                self.update_status(f"Обработка: {filepath.name}")
+                self.log_message(f"[{file_index + 1}/{total_files}] {filepath.name}")
+
+                wb = None
+
+                try:
+                    wb = excel.Workbooks.Open(str(filepath.resolve()))
+
+                    if not sheet_exists(wb, "SampleAnalyses"):
+                        self.log_message("  - Лист SampleAnalyses не найден")
+                        continue
+
+                    sample_analysis_ws = wb.Worksheets("SampleAnalyses")
+
+                    lab_id_samples = []
+                    count = 8
+                    last_sample_count = 0
+
+                    while True:
+                        value = sample_analysis_ws.Range(f"B{count}").Value
+
+                        if value is not None and str(value).strip() != "":
+                            lab_id_samples.append(str(value).strip())
+                            count += 1
+                        else:
+                            last_sample_count = count
+                            break
+
+                    if not has_duplicates(lab_id_samples):
+                        self.log_message("  - Дубликаты не найдены")
+                        continue
+
+                    lab_id_dups_samples = find_duplicates(lab_id_samples)
+
+                    self.log_message(f"  Найдены дубликаты: {lab_id_dups_samples}")
+
+                    for row in range(last_sample_count, 7, -1):
+                        value = sample_analysis_ws.Range(f"B{row}").Value
+
+                        if str(sample_analysis_ws.Range(f"B{row}").Value).lower() == 'bl':
+                            for col in range(1, 47):
+                                sample_analysis_ws.Cells(row, col).Value = ""
+                                
+                        if value is None:
+                            continue
+
+                        value = str(value).strip()
+
+                        if value in lab_id_dups_samples or value == "1":
+                            for col in range(1, 47):
+                                sample_analysis_ws.Cells(row, col).Value = ""
+
+                    wb.Save()
+
+                    results.append(str(filepath))
+
+                    self.log_message("  ✓ Файл обработан и сохранен")
+
+                except Exception as e:
+                    self.log_message(f"  ✗ Ошибка обработки файла: {e}")
+
+                finally:
+                    if wb is not None:
+                        wb.Close(SaveChanges=False)
+
+        finally:
+            if excel is not None:
+                excel.Quit()
+
             pythoncom.CoUninitialize()
-            # Проверяем наличие листа PLM_TEM_Report
-                    
-        if not results:
-            self.update_status("Готово (нет данных)")
-            messagebox.showwarning("Внимание", "Не найдено файлов с листом PLM_TEM_Report")
+
             self.btn_run.config(state=NORMAL)
             self.btn_select.config(state=NORMAL)
-            return
-        
-        # Сохраняем результат
-        self.update_status("Сохраняю файл...")
-        self.log_message("\nСохраняю результат...")
-        
-        output_file = Path(self.folder_path) / "qc_data.xlsx"
-      
-        self.log_message("  ✓ Лист 'По аналитикам' создан")
-        self.log_message("  ✓ Лист 'По месяцам' создан")
-        self.log_message("  ✓ Лист 'Аналитик-Месяц' создан")
-        
-        self.progress['value'] = 100
-        self.update_status("Готово!")
-        self.log_message(f"\n✓ Сохранено: {output_file}")
-        self.log_message(f"Обработано файлов с данными: {len(results)}")
-        
-        messagebox.showinfo(
-            "Готово!", 
-            f"Обработано файлов: {len(results)}\n\n")
-        
-        self.btn_run.config(state=NORMAL)
-        self.btn_select.config(state=NORMAL)
 
+        if not results:
+            self.update_status("Готово, но изменений не было")
+            messagebox.showwarning("Внимание", "Файлы с дубликатами не найдены")
+            return
+
+        self.progress["value"] = 100
+        self.update_status("Готово!")
+        self.log_message(f"\n✓ Обработано файлов: {len(results)}")
+
+        messagebox.showinfo(
+            "Готово!",
+            f"Обработано файлов: {len(results)}"
+        )
 
 if __name__ == "__main__":
     root = Tk()
