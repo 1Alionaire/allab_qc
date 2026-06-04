@@ -187,22 +187,22 @@ class QCProcessorApp:
 
                     self.log_message(f"  Найдены дубликаты: {lab_id_dups_samples}")
 
-                    for row in range(last_sample_count, 7, -1):
+                    for row in range((last_sample_count + 4), 7, -1):
                         value = sample_analysis_ws.Range(f"B{row}").Value
 
-                        if str(sample_analysis_ws.Range(f"A{row}").Value).lower() == 'bl':
-                            for col in range(1, 47):
-                                sample_analysis_ws.Cells(row, col).Value = ""
-                                
                         if value is None:
                             continue
+
+                        if str(sample_analysis_ws.Range(f"A{row}").Value).lower().strip() == 'bl':
+                            for col in range(1, 50):
+                                sample_analysis_ws.Cells(row, col).Value = ""
 
                         value = str(value).strip()
 
                         if value in lab_id_dups_samples:
-                            lab_id_dups_samples.remove(value)
-                            for col in range(1, 47):
+                            for col in range(1, 50):
                                 sample_analysis_ws.Cells(row, col).Value = ""
+                            lab_id_dups_samples.remove(value)
 
                     wb.Save()
 
