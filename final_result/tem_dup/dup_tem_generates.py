@@ -5,49 +5,57 @@ import random
 import copy
 import os
 import sys
-
+import logging
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
-from utils.utilities import lab_id_sort_key, random_calc_point_asb, calc_asb_percent
-      
-def get_plm_nob_random_sample_from_project(samples_list, analyst): 
+from utils.utilities import lab_id_sort_key, random_calc_point_asb, calc_asb_percent, tem_calc_asb_percent
+
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(message)s'
+)
+
+def get_tem_random_sample_from_project(samples_list, analyst): 
     samples_list_duplicate = copy.deepcopy(samples_list)
-    
+
     while True:
         random_index = random.randint(0, len(samples_list_duplicate) - 1)
         removed_element = samples_list_duplicate.pop(random_index)
-        if removed_element['Type Asb 1 Option'] != 'PS':
-            if removed_element['Method'] != 'None':
-                original_sample = removed_element
-                break
+        logging.info('=' * 50)
+        logging.info(removed_element)
+        if (removed_element['Asb Type Type 1'] != 'PS' 
+            and len(removed_element['Lab ID']) > 3
+            and removed_element['Client ID'] != 'R' 
+            and removed_element['Lab ID'] != 'None'
+            and removed_element['Client ID'][-2:] not in ['AB', 'KK', 'OV', 'VC']):
+            original_sample = removed_element
+            break
 
-    duplicate_sample = copy.deepcopy(original_sample)        #random_calc_point_asb(samples_list[i][f'Point {j}'])
+    duplicate_sample = copy.deepcopy(original_sample)  
 
     duplicate_sample['Client ID'] = 'D' + original_sample['Client ID'] + analyst
 
-    if duplicate_sample['Type Asb 1 Option'] != 'NAD' and duplicate_sample['Type Asb 1 Option'] != 'None':
-        for j in range(1, 9):
-            if duplicate_sample[f'Type {j}'] != 'None':
-                duplicate_sample[f'Point {j}'] = random_calc_point_asb(original_sample[f'Point {j}'])
+    tem_calc_asb_dict = tem_calc_asb_percent(original_sample)
+    
+    if duplicate_sample['Asb Type Type 1'] != 'NAD' and duplicate_sample['Asb Type Type 1'] != 'None':
+        duplicate_sample['Percent Type 1'] = tem_calc_asb_dict['percent']
+        duplicate_sample['Point Type 1'] = tem_calc_asb_dict['point']
 
-        intermediate_percent_result = calc_asb_percent(duplicate_sample)
-
-        duplicate_sample['Percent 1 Option'] = round(((intermediate_percent_result * float(duplicate_sample['Total Residue'])) / 100), 2) #change
-
-    if duplicate_sample['Type Asb 1 Option'] == 'None':
-        duplicate_sample['Type Asb 1 Option'] = 'NAD'
-        duplicate_sample['Percent 1 Option'] = 'NAD'
+    if duplicate_sample['Asb Type Type 1'] == 'None':
+        duplicate_sample['Asb Type Type 1'] = 'NAD'
+        duplicate_sample['Percent Type 1'] = 'NAD'
         
-        original_sample['Type Asb 1 Option'] = 'NAD'
-        original_sample['Percent 1 Option'] = 'NAD'
+        original_sample['Asb Type Type 1'] = 'NAD'
+        original_sample['Percent Type 1'] = 'NAD'
 
     return {
         'sample': original_sample['Client ID'],
-        '1st_analyst_asb_type': original_sample['Type Asb 1 Option'], 
-        '1st_analyst_asb_percent': original_sample['Percent 1 Option'], 
-        'dup_asb_type': duplicate_sample['Type Asb 1 Option'], 
-        'dup_asb_percent': duplicate_sample['Percent 1 Option'],
+        '1st_analyst_asb_type': original_sample['Asb Type Type 1'], 
+        '1st_analyst_asb_percent': original_sample['Percent Type 1'], 
+        'dup_asb_type': duplicate_sample['Asb Type Type 1'], 
+        'dup_asb_percent': duplicate_sample['Percent Type 1'],
         'whole_original':  original_sample,
         'whole_duplicate': duplicate_sample
     }
@@ -73,30 +81,29 @@ def main_start():
 
             data_per_analyst = []
             for record in info:
-                nob_total_samples = 0       # total count samples per day. 
+                tem_total_samples = 0       # total count samples per day. 
                 # filter all projects by day
                 projects_by_date = {key: value for key, value in raw_data.items() if (value['date'][:-8].strip() == record['date']
-                                                                                      and value['nob_count'] > 0) 
+                                                                                      and value['tem_count'] > 0) 
                                                                                       and value['analyst'] == analyst }
-                nob_counter  = 0         # this counter need only for first blank sample in first project of the day
+                tem_counter  = 0         # this counter need only for first blank sample in first project of the day
                 #iterate through all projects in this day
-
                 for project, project_info in projects_by_date.items():
 
-                    if project_info['nob_count'] > 0 and project_info['nob_analysis']:
-                        before = nob_total_samples
-                        after = before + project_info['nob_count']
+                    if project_info['tem_count'] > 0 and project_info['tem_analysis']:
+                        before = tem_total_samples
+                        after = before + project_info['tem_count']
 
                         duplicates_before = before // 50
                         duplicates_after = after // 50
                         duplicates_to_add = duplicates_after - duplicates_before
 
-                        if nob_counter == 0:
+                        if tem_counter == 0:
                             duplicates_to_add += 1
 
                         if duplicates_to_add > 0:
                             for i in range(duplicates_to_add):
-                                sample_duplicate = get_plm_nob_random_sample_from_project(project_info['nob_analysis'], analyst)
+                                sample_duplicate = get_tem_random_sample_from_project(project_info['tem_analysis'], analyst)
 
                                 duplicate_record = {
                                     'date': project_info['date'], 
@@ -116,12 +123,12 @@ def main_start():
                                 data_per_analyst.append(duplicate_record)
                                 data_per_month['total'].append(duplicate_record)
 
-                                for l in project_info['nob_analysis']:
+                                for l in project_info['tem_analysis']:
                                     if l['Client ID'] == duplicate_record['sample']:
-                                        project_info['nob_analysis'].remove(l)
+                                        project_info['tem_analysis'].remove(l)
 
-                        nob_total_samples = after
-                        nob_counter+=1
+                        tem_total_samples = after
+                        tem_counter+=1
 
             data_per_analyst_sorted = sorted(data_per_analyst, key=lab_id_sort_key)
             data_per_month[analyst] = data_per_analyst_sorted

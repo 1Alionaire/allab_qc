@@ -26,7 +26,7 @@ def main_start():
     for file in script_dir.glob("*.json"):
         file_base_name = os.path.basename(file)
 
-        excel_result_name = return_excel_filename(type='NOB', input_filename=file_base_name)
+        excel_result_name = return_excel_filename(type='TEM', input_filename=file_base_name)
         template_excel_path = Path(excel_result_dir / excel_result_name)
         print(template_excel_path)
         wb = load_workbook(template_excel_path)
@@ -70,7 +70,6 @@ def main_start():
                 ws = wb[analyst]
                 count = 17
                 for item_info in info:
-                    logging.info(item_info['project'])
                     if '-1000' not in item_info['lab id']:
                         ws[f'J{count}'] = item_info['1st_analyst_name']
                         ws[f'K{count}'] = item_info['1st_analyst_asb_type'][:4] 

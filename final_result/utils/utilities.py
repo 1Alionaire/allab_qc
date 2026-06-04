@@ -4,6 +4,13 @@ import math
 import random
 import copy
 import os
+import logging
+
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(message)s'
+)
 
 def replicate_analyst(entry_analyst):
     if entry_analyst == "AB":
@@ -101,3 +108,55 @@ def return_excel_filename(type, input_filename):
             return 'NOB_Apr.xlsx'
         elif '_2026-05' in str(input_filename):
             return 'NOB_May.xlsx'
+    elif type == 'TEM':
+        if '_2026-01' in str(input_filename):
+            return 'TEM_Jan.xlsx'
+        elif '_2026-02' in str(input_filename):
+            return 'TEM_Feb.xlsx'
+        elif '_2026-03' in str(input_filename):
+            return 'TEM_Mar.xlsx'
+        elif '_2026-04' in str(input_filename):
+            return 'TEM_Apr.xlsx'
+        elif '_2026-05' in str(input_filename):
+            return 'TEM_May.xlsx'
+        
+def tem_calc_asb_percent(duplicate_sample):
+    original_point = duplicate_sample["Point Type 1"]
+
+    if original_point == 'None':
+        return 'None'
+    
+    int_original_point = 0
+    try:
+        int_original_point = int(original_point)
+    except:
+        int_original_point = 0
+
+    operation = random.choice(['-', '+'])
+    value = random.choice([2, 3, 4])
+
+    if int_original_point != 0:
+        if operation == '-':
+            inter_result = int_original_point - value
+            if inter_result < 0: 
+                inter_result = 1
+        else:
+            inter_result = int_original_point + value
+    else:
+        return  {'percent': 'NAD', 
+                'point': 'NAD'}
+
+    try:
+        float_residue = float(duplicate_sample["Residue"])
+    except:
+        return  {'percent': 0, 
+                'point': inter_result}
+    
+    logging.info('*' * 40)
+    logging.info(f"original_sample['Lab ID'] : {duplicate_sample['Lab ID']}")
+    logging.info(f'inter_result: {inter_result}')
+    logging.info(f'float_residue: {float_residue}')
+    logging.info(f'(float_residue * inter_result): {(float_residue * inter_result)}')
+    return {'percent': round(((float_residue * inter_result) / 100), 2), 
+            'point': inter_result}
+    
