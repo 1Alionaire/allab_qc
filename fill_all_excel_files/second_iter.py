@@ -92,8 +92,8 @@ excel.AutomationSecurity = 1  # без Protected View
 
 chosen_company = 'ABC Environmental LLC'
 
-chosen_company_data = [value for value in all_samples if (chosen_company in value['file_name'] 
-                                                                            and '2026-03' in value['date']) ]
+chosen_company_data = [value for value in all_samples if (chosen_company in value['file_name'] )]
+                                                                        
 logging.info(f'chosen_company_data: {chosen_company_data}')
 
 try:
