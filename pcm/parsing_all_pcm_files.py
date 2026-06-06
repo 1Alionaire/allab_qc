@@ -43,6 +43,14 @@ def find_project_in_sample(inp_sample_id):
         final_result += i
         if i == '-':
             count -= 1
+def normalize_value(input_value):
+    inp_str = str(input_value).strip()
+    if '..' in inp_str:
+        inp_str = inp_str.replace('..', '.')
+    if ',' in inp_str:
+        inp_str = inp_str.replace(',', '.')
+    return float(inp_str)
+
 
 class QCProcessorApp:
     def __init__(self, root):
@@ -195,7 +203,7 @@ class QCProcessorApp:
             client_sample_id = None
             original_sample_value = 0
             qc_sample_value = 0
-
+            print(project_info)
             for i in range(8, 46):
                 row_count += 1
                 if (pcm_qc_sheet[f"F{i}"].value is not None 
@@ -205,8 +213,8 @@ class QCProcessorApp:
                         and str(pcm_qc_sheet[f"G{i}"].value).strip() != ''
                         and str(pcm_qc_sheet[f"H{i}"].value).strip() != ''):
 
-                        qc_sample_value = int(str(pcm_qc_sheet[f"F{i}"].value).strip())
-                        original_sample_value = int(str(pcm_qc_sheet[f"B{i}"].value).strip())
+                        qc_sample_value = normalize_value(pcm_qc_sheet[f"F{i}"].value)
+                        original_sample_value = normalize_value(pcm_qc_sheet[f"B{i}"].value)
                         client_sample_id = str(project_info) + '-' + str(row_count)
                         
 
@@ -214,7 +222,7 @@ class QCProcessorApp:
                                                                     'original_value' : original_sample_value,
                                                                     'qc_value' : qc_sample_value,
                                                                     'analyst' : str(pcm_qc_sheet["S3"].value), 
-                                                                    'date_analyzed' : date_analyzed, 
+                                                                    'date_analyzed' : str(date_analyzed), 
                                                                     'low_range_sr': str(pcm_qc_sheet["B55"].value) if str(pcm_qc_sheet["B55"].value).strip() != '' else '0',
                         }})
             
@@ -263,4 +271,5 @@ if __name__ == "__main__":
     app = QCProcessorApp(root)
     root.mainloop()
 
-    # pyinstaller --onefile --windowed --name="QC_Collector" qc_info0.07.py
+    # pyinstaller --onefile --windowed --name="QC_PCM_Collector" parsing_all_pcm_files.py
+    # pyinstaller --onefile --windowed --name="Add_PLM_Replicates_0.01" --add-data "PLM_REP_test_data.json;." first_iter.py

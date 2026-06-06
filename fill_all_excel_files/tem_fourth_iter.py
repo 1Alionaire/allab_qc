@@ -36,57 +36,29 @@ logging.basicConfig(
 
 JSON_SOURCE_NAME = "total_data.json"
 
-OPTIONS = ["PLM_REP", "PLM_DUP", "NOB_REP", "NOB_DUP"]
+OPTIONS = ["TEM_REP", "TEM_DUP"]
 
 columns_dict = {
     1: "Client ID",
     2: "Lab ID",
     3: "Layer",
-    4: "Color",
-    5: "Texture",
-    6: "Homogeneity",
-    7: "Morphology",
-    8: "RI II Type 1",
-    9: "RI II Type 2",
-    10: "RI ┴ Type 1",
-    11: "RI ┴ Type 2",
-    12: "Sign of \nElongation Type 1",
-    13: "Sign of \nElongation Type 2",
-    14: "Extinction \nAngle Type 1",
-    15: "Extinction \nAngle Type 2",
-    16: "Pleochroism /\nColor Type 1",
-    17: "Pleochroism /\nColor Type 2",
-    18: "Birefringence Type 1",
-    19: "Birefringence Type 2",
-    20: "Other Fibers",
-    21: "Property",
-    22: "% Non-\nAsbestos",
-    23: "Type 1",
-    24: "Point 1",
-    25: "Type 2",
-    26: "Point 2",
-    27: "Type 3",
-    28: "Point 3",
-    29: "Type 4",
-    30: "Point 4",
-    31: "Type 5",
-    32: "Point 5",
-    33: "Type 6",
-    34: "Point 6",
-    35: "Type 7",
-    36: "Point 7",
-    37: "Type 8",
-    38: "Point 8",
-    39: "Type Asb 1 Option",
-    40: "Percent 1 Option",
-    41: "Type Asb 2 Option",
-    42: "Percent 2 Option",
-    43: "Vermiculite",
-    44: "Method",
-    45: "Undesolved Materials",
-    46: "Total Residue",
+    4: "Homogeneity",
+    5: 'Residue', 
+    6: 'Point Type 1', 
+    7: 'Percent Type 1', 
+    8: 'Asb Type Type 1', 
+    9: 'Point Type 2', 
+    10: 'Percent Type 2',
+    11: 'Asb Type Type 2', 
+    12: 'Microscope', 
+    13: 'Eccentricity', 
+    14: 'Grid Pre', 
+    15: 'Grid Box #',
+    16: 'Grid Box ID 1', 
+    17: 'Grid Box ID 2', 
+    18: 'Method', 
+    19: 'NA or PS'
 }
-
 
 def process_samples(option, filter_text, log_callback):
     """Основная логика. log_callback(str) — для вывода в GUI."""
@@ -132,9 +104,9 @@ def process_samples(option, filter_text, log_callback):
             wb = None
             try:
                 wb = excel.Workbooks.Open(str(Path(fname).resolve()))
-                ws = wb.Worksheets("SampleAnalyses")
+                ws = wb.Worksheets("TEM_Calculation")
 
-                count = 8
+                count = 6
                 last_sample_count = 0
                 while True:
                     value = ws.Range(f"B{count}").Value
@@ -149,19 +121,7 @@ def process_samples(option, filter_text, log_callback):
                         v = sample["whole_duplicate"].get(text_key, "None")
                         ws.Cells(last_sample_count, col).Value = "" if v == "None" else v
                 else:
-                    ws.Cells(last_sample_count, 1).Value = "bl"
-                    ws.Cells(last_sample_count, 2).Value = "1"
-                    ws.Cells(last_sample_count, 3).Value = ""
-                    ws.Cells(last_sample_count, 5).Value = ""
-                    ws.Cells(last_sample_count, 22).Value = "100"
-                    ws.Cells(last_sample_count, 23).Value = "NAD"
-                    ws.Cells(last_sample_count, 24).Value = "50"
-                    ws.Cells(last_sample_count, 25).Value = "NAD"
-                    ws.Cells(last_sample_count, 26).Value = "50"
-                    ws.Cells(last_sample_count, 27).Value = "NAD"
-                    ws.Cells(last_sample_count, 28).Value = "50"
-                    ws.Cells(last_sample_count, 29).Value = "NAD"
-                    ws.Cells(last_sample_count, 30).Value = "50"
+                    pass
 
                 wb.Save()
                 processed += 1
