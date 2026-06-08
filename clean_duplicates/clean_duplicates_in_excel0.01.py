@@ -30,8 +30,6 @@ def sheet_exists(wb, sheet_name):
             return True
     return False
 
-
-
 def find_duplicates(nums):
     counts = Counter(nums)
     # Возвращаем ключи, количество которых больше 1
@@ -163,27 +161,28 @@ class QCProcessorApp:
                         self.log_message("  - Лист SampleAnalyses не найден")
                         continue
 
-                    sample_analysis_ws = wb.Worksheets("TEM_Calculation")
-                    result_analysis_ws = wb.Worksheets("PLM_TEM_Report")
-                    
-                    total_result_row = 1
-                    while True:
-                        result_analysis_ws.Range(f"A{total_result_row}").Value
-
+                    sample_analysis_ws = wb.Worksheets("SampleAnalyses")
 
                     lab_id_samples = []
+                    lab_id_samples_dict = {}
+                    lab_id_dups_samples = []
                     count = 8
                     last_sample_count = 0
 
                     while True:
-                        value = sample_analysis_ws.Range(f"B{count}").Value
+                        sample_client_id = sample_analysis_ws.Range(f"A{count}").Value
+                        sample_lab_id = str(sample_analysis_ws.Range(f"B{count}").Value).strip()
 
-                        if value is not None and str(value).strip() != "":
-                            lab_id_samples.append(str(value).strip())
+                        if sample_client_id is not None and str(sample_client_id).strip() != "":
+                            lab_id_samples.append(sample_lab_id)
+                            lab_id_samples_dict[count] = sample_lab_id
                             count += 1
                         else:
-                            last_sample_count = count
+                            last_sample_count = count + 1
                             break
+
+                    print(f'lab_id_samples: {lab_id_samples}')
+                    
 
                     if not has_duplicates(lab_id_samples):
                         self.log_message("  - Дубликаты не найдены")
@@ -191,19 +190,22 @@ class QCProcessorApp:
 
                     lab_id_dups_samples = find_duplicates(lab_id_samples)
 
+                    print(lab_id_dups_samples)
+
                     self.log_message(f"  Найдены дубликаты: {lab_id_dups_samples}")
 
                     for row in range((last_sample_count + 4), 7, -1):
-                        value = sample_analysis_ws.Range(f"B{row}").Value
-
-                        if value is None:
+                        if sample_analysis_ws.Range(f"B{row}").Value is None:
                             continue
+
+                        value = str(sample_analysis_ws.Range(f"B{row}").Value).strip()
+
+                        print(f'value: {value}')
+                        print('sample_analysis_ws.Range(A{row}' + str(sample_analysis_ws.Range(f"A{row}").Value).lower().strip())
 
                         if str(sample_analysis_ws.Range(f"A{row}").Value).lower().strip() == 'bl':
                             for col in range(1, 50):
                                 sample_analysis_ws.Cells(row, col).Value = ""
-
-                        value = str(value).strip()
 
                         if value in lab_id_dups_samples:
                             for col in range(1, 50):

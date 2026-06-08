@@ -242,4 +242,4 @@ class App(tk.Tk):
 if __name__ == "__main__":
     App().mainloop()
 
-# pyinstaller --onefile --windowed --name="Add_Replicates_0.01" --add-data "total_data.json;." gui_app.py
+# pyinstaller --onefile --windowed --name="Add_Replicates_0.01" --add-data "total_data.json;." third_iter.py

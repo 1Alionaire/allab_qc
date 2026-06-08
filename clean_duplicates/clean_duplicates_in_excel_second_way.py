@@ -160,55 +160,52 @@ class QCProcessorApp:
                     wb = excel.Workbooks.Open(str(filepath.resolve()))
 
                     if not sheet_exists(wb, "SampleAnalyses"):
-                        self.log_message("  - Лист SampleAnalyses не найден")
+                        self.log_message(f" {filepath.name} - Лист SampleAnalyses не найден")
                         continue
 
-                    sample_analysis_ws = wb.Worksheets("TEM_Calculation")
-                    result_analysis_ws = wb.Worksheets("PLM_TEM_Report")
-                    
-                    total_result_row = 1
+                    sample_analysis_ws = wb.Worksheets("SampleAnalyses")
+                    report_ws = wb.Worksheets("PLM_TEM_Report")
+
+                    if (sample_analysis_ws.Range("A8").Value is None and str(sample_analysis_ws.Range("A8").Value).strip() == ""
+                        and sample_analysis_ws.Range("B8").Value is None and str(sample_analysis_ws.Range("B8").Value).strip() == ""):
+                        self.log_message(f"{filepath.name} - No Samples")
+                        continue
+
+                    if str(sample_analysis_ws.Range("A8").Value) == 'None' and str(sample_analysis_ws.Range("B8").Value) == 'None':
+                        self.log_message(f"{filepath.name} - No Samples")
+                        continue
+
+                    report_row = 6
+                    total_amount_samples = 0
                     while True:
-                        result_analysis_ws.Range(f"A{total_result_row}").Value
-
-
-                    lab_id_samples = []
-                    count = 8
-                    last_sample_count = 0
-
-                    while True:
-                        value = sample_analysis_ws.Range(f"B{count}").Value
-
-                        if value is not None and str(value).strip() != "":
-                            lab_id_samples.append(str(value).strip())
-                            count += 1
-                        else:
-                            last_sample_count = count
+                        lab_id = report_ws.Range(f"B{report_row}").Value
+                        if lab_id is None:
+                            total_amount_samples = report_row - 5
                             break
+                        else:
+                            if str(lab_id).strip == '':
+                                total_amount_samples = report_row - 5
+                                break
+                        report_row += 1
 
-                    if not has_duplicates(lab_id_samples):
-                        self.log_message("  - Дубликаты не найдены")
-                        continue
+                    sample_row = 7 + total_amount_samples
 
-                    lab_id_dups_samples = find_duplicates(lab_id_samples)
+                    self.log_message(f" total_amount_samples: {total_amount_samples - 1} ")
 
-                    self.log_message(f"  Найдены дубликаты: {lab_id_dups_samples}")
+                    while True:
+                        sample_client_id = sample_analysis_ws.Range(f"A{sample_row}").Value
+                        sample_lab_id = sample_analysis_ws.Range(f"B{sample_row}").Value
 
-                    for row in range((last_sample_count + 4), 7, -1):
-                        value = sample_analysis_ws.Range(f"B{row}").Value
-
-                        if value is None:
-                            continue
-
-                        if str(sample_analysis_ws.Range(f"A{row}").Value).lower().strip() == 'bl':
+                        if (sample_client_id is not None and str(sample_client_id).strip() != ""
+                            and sample_lab_id is not None and str(sample_lab_id).strip() != ""):
                             for col in range(1, 50):
-                                sample_analysis_ws.Cells(row, col).Value = ""
-
-                        value = str(value).strip()
-
-                        if value in lab_id_dups_samples:
+                                sample_analysis_ws.Cells(sample_row, col).Value = ""
+                        elif (str(sample_client_id).strip() != 'None' and str(sample_lab_id).strip() != "None"):
                             for col in range(1, 50):
-                                sample_analysis_ws.Cells(row, col).Value = ""
-                            lab_id_dups_samples.remove(value)
+                                sample_analysis_ws.Cells(sample_row, col).Value = ""
+                        else:
+                            break
+                        sample_row += 1
 
                     wb.Save()
 
@@ -252,3 +249,4 @@ if __name__ == "__main__":
     root.mainloop()
 
     # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples" clean_duplicates_in_excel.py
+    # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples_2nd_way" clean_duplicates_in_excel_second_way.py

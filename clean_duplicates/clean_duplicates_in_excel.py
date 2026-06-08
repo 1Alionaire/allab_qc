@@ -160,23 +160,26 @@ class QCProcessorApp:
                     wb = excel.Workbooks.Open(str(filepath.resolve()))
 
                     if not sheet_exists(wb, "SampleAnalyses"):
-                        self.log_message("  - Лист SampleAnalyses не найден")
+                        self.log_message(f" {filepath.name} - Лист SampleAnalyses не найден")
                         continue
 
                     sample_analysis_ws = wb.Worksheets("SampleAnalyses")
 
                     lab_id_samples = []
+                    lab_id_samples_dict = {}
                     count = 8
                     last_sample_count = 0
 
                     while True:
-                        value = sample_analysis_ws.Range(f"B{count}").Value
+                        sample_client_id = sample_analysis_ws.Range(f"B{count}").Value
+                        sample_lab_id = sample_analysis_ws.Range(f"B{count}").Value
 
-                        if value is not None and str(value).strip() != "":
-                            lab_id_samples.append(str(value).strip())
+                        if sample_client_id is not None and str(sample_client_id).strip() != "":
+                            lab_id_samples.append(str(sample_lab_id).strip())
+                            lab_id_samples_dict[count] = sample_lab_id
                             count += 1
                         else:
-                            last_sample_count = count
+                            last_sample_count = count + 1
                             break
 
                     if not has_duplicates(lab_id_samples):
@@ -185,11 +188,13 @@ class QCProcessorApp:
 
                     lab_id_dups_samples = find_duplicates(lab_id_samples)
 
+                    print(lab_id_dups_samples)
+
                     self.log_message(f"  Найдены дубликаты: {lab_id_dups_samples}")
 
                     for row in range((last_sample_count + 4), 7, -1):
                         value = sample_analysis_ws.Range(f"B{row}").Value
-
+                        print(value)
                         if value is None:
                             continue
 

@@ -156,3 +156,4 @@ finally:
 
 # pyinstaller --onefile --windowed --name="Add_PLM_Replicates_0.01" first_iter.py
 # with file: pyinstaller --onefile --windowed --name="Add_PLM_Replicates_0.01" --add-data "PLM_REP_test_data.json;." first_iter.py
+# with file: pyinstaller --onefile --windowed --name="Add_PLM_Duplicates_0.01" --add-data "PLM_DUP.json;." second_iter.py
