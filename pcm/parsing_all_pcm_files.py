@@ -193,10 +193,10 @@ class QCProcessorApp:
                     if str(project_info) not in str(filepath):
                         project_info = find_project_in_sample(wb["Sample"]["Q5"].value)
 
-            if project_info in pcm_sample_dict:
-                self.log_message(f" Already Has")
-                wb.close()
-                continue
+            # if project_info in pcm_sample_dict:
+            #     self.log_message(f" Already Has")
+            #     wb.close()
+            #     continue
             
             row_count = 0
             
@@ -212,26 +212,30 @@ class QCProcessorApp:
                     if (str(pcm_qc_sheet[f"F{i}"].value).strip() != '' 
                         and str(pcm_qc_sheet[f"G{i}"].value).strip() != ''
                         and str(pcm_qc_sheet[f"H{i}"].value).strip() != ''):
+                        client_sample_id = str(project_info) + '-' + str(row_count)
+
+                        if client_sample_id in pcm_sample_dict:
+                            continue
 
                         qc_sample_value = normalize_value(pcm_qc_sheet[f"F{i}"].value)
                         original_sample_value = normalize_value(pcm_qc_sheet[f"B{i}"].value)
-                        client_sample_id = str(project_info) + '-' + str(row_count)
+                        
                         
 
-                        pcm_sample_array.append({client_sample_id : {
-                                                                    'original_value' : original_sample_value,
+                        pcm_sample_dict[client_sample_id] = {'original_value' : original_sample_value,
                                                                     'qc_value' : qc_sample_value,
                                                                     'analyst' : str(pcm_qc_sheet["S3"].value), 
                                                                     'date_analyzed' : str(date_analyzed), 
-                                                                    'low_range_sr': str(pcm_qc_sheet["B55"].value) if str(pcm_qc_sheet["B55"].value).strip() != '' else '0',
-                        }})
-            
+                                                                    'low_range_sr': str(pcm_qc_sheet["B55"].value) if str(pcm_qc_sheet["B55"].value).strip() != '' else '0'} 
+
             wb.close()
             
-            output_file = Path(self.folder_path) / "qc_pcm_raw_data.json"
+        
+
+        output_file = Path(self.folder_path) / "qc_pcm_raw_data.json"
 
         with open(output_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(pcm_sample_array, indent=4, ensure_ascii=False))
+            f.write(json.dumps(pcm_sample_dict, indent=4, ensure_ascii=False))
 
         self.log_message(f"  ✓ ")
         
