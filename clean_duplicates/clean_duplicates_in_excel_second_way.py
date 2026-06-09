@@ -21,6 +21,8 @@ from collections import Counter
 
 import pythoncom
 
+
+
 def has_duplicates(nums):
     return len(nums) != len(set(nums))
 

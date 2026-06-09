@@ -118,10 +118,13 @@ def process_samples(option, filter_text, log_callback):
 
                 if sample.get("whole_duplicate"):
                     for col, text_key in columns_dict.items():
-                        v = sample["whole_duplicate"].get(text_key, "None")
+                        v = sample["whole_duplicate"].get(text_key, "")
                         ws.Cells(last_sample_count, col).Value = "" if v == "None" else v
                 else:
-                    pass
+                    ws.Cells(last_sample_count, 1).Value = "bl"
+                    ws.Cells(last_sample_count, 2).Value = "1"
+                    ws.Cells(last_sample_count, 16).Value = "D8"
+                    ws.Cells(last_sample_count, 17).Value = "E8"
 
                 wb.Save()
                 processed += 1
@@ -205,4 +208,4 @@ class App(tk.Tk):
 if __name__ == "__main__":
     App().mainloop()
 
-# pyinstaller --onefile --windowed --name="Add_Replicates_0.01" --add-data "total_data.json;." fourth_iter.py
+# pyinstaller --onefile --windowed --name="TEM_Add_Replicates_0.01" --add-data "tem_total_data.json;." tem_fourth_iter.py
