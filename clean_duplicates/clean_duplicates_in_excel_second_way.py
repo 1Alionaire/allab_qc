@@ -18,10 +18,33 @@ import pandas as pd
 from datetime import date
 import json
 from collections import Counter
-
+import time
 import pythoncom
 
+import time
+import pythoncom
 
+def open_with_retry(excel, filepath, attempts=3, delay=2.0):
+    """
+    Открывает книгу. На транзиентных сбоях (None или COM-ошибка) ждёт и пробует снова.
+    Возвращает workbook или поднимает RuntimeError после всех попыток.
+    """
+    last_err = None
+    for i in range(1, attempts + 1):
+        try:
+            wb = excel.Workbooks.Open(filepath, 0, False)
+            if wb is not None:
+                if i > 1:
+                    print(f'  ↻ Открылся со {i}-й попытки')
+                return wb
+            last_err = 'Open вернул None'
+        except pythoncom.com_error as e:
+            last_err = f'COM error: {e}'
+
+        if i < attempts:
+            time.sleep(delay * i)  # экспоненциально: 2, 4, 6 секунд
+
+    raise RuntimeError(f'Не открылся за {attempts} попыток: {last_err}')
 
 def has_duplicates(nums):
     return len(nums) != len(set(nums))
@@ -153,13 +176,15 @@ class QCProcessorApp:
                 progress_value = (file_index + 1) / total_files * 100
                 self.progress["value"] = progress_value
 
-                self.update_status(f"Обработка: {filepath.name}")
-                self.log_message(f"[{file_index + 1}/{total_files}] {filepath.name}")
 
+                self.update_status(f"Обработка: {filepath.name}")
+                self.log_message("*" * 50)
+                self.log_message(f"[{file_index + 1}/{total_files}] {filepath.name}")
+                
                 wb = None
 
                 try:
-                    wb = excel.Workbooks.Open(str(filepath.resolve()))
+                    wb = open_with_retry(excel, filepath)
 
                     if not sheet_exists(wb, "SampleAnalyses"):
                         self.log_message(f" {filepath.name} - Лист SampleAnalyses не найден")
@@ -176,7 +201,8 @@ class QCProcessorApp:
                     if str(sample_analysis_ws.Range("A8").Value) == 'None' and str(sample_analysis_ws.Range("B8").Value) == 'None':
                         self.log_message(f"{filepath.name} - No Samples")
                         continue
-
+                    
+                    
                     report_row = 6
                     total_amount_samples = 0
                     while True:
@@ -200,6 +226,7 @@ class QCProcessorApp:
 
                         if (sample_client_id is not None and str(sample_client_id).strip() != ""
                             and sample_lab_id is not None and str(sample_lab_id).strip() != ""):
+                            self.log_message(f"will delete {sample_analysis_ws.Cells(sample_row, 1).Value}")
                             for col in range(1, 50):
                                 sample_analysis_ws.Cells(sample_row, col).Value = ""
                         elif (str(sample_client_id).strip() != 'None' and str(sample_lab_id).strip() != "None"):
@@ -217,10 +244,12 @@ class QCProcessorApp:
 
                 except Exception as e:
                     self.log_message(f"  ✗ Ошибка обработки файла: {e}")
+                    continue
 
                 finally:
                     if wb is not None:
                         wb.Close(SaveChanges=False)
+                        time.sleep(0.3) 
 
         finally:
             if excel is not None:
@@ -252,3 +281,4 @@ if __name__ == "__main__":
 
     # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples" clean_duplicates_in_excel.py
     # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples_2nd_way" clean_duplicates_in_excel_second_way.py
+    # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples_2nd_way_v.01" clean_duplicates_in_excel_second_way.py

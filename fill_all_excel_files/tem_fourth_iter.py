@@ -34,7 +34,7 @@ logging.basicConfig(
     handlers=[logging.FileHandler(str(log_file), encoding="utf-8")],
 )
 
-JSON_SOURCE_NAME = "total_data.json"
+JSON_SOURCE_NAME = "tem_total_data.json"
 
 OPTIONS = ["TEM_REP", "TEM_DUP"]
 
