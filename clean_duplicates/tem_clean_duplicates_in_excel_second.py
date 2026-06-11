@@ -156,6 +156,9 @@ class QCProcessorApp:
 
                 wb = None
 
+                if 'TEM' not in filepath.name:
+                    continue
+
                 try:
                     wb = excel.Workbooks.Open(str(filepath.resolve()))
 
@@ -252,4 +255,4 @@ if __name__ == "__main__":
     root.mainloop()
 
     # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples" clean_duplicates_in_excel.py
-    # pyinstaller --onefile --windowed --name="TEM_Delete_all_old_dup_samples" tem_clean_duplicates_in_excel_second.py
+    # pyinstaller --onefile --windowed --name="TEM_Delete_all_old_dup_samples0.01" tem_clean_duplicates_in_excel_second.py

@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import date
 import json
 import time
+import datetime
 
 def find_project_in_sample(inp_sample_id):
     final_result = ''
@@ -25,6 +26,12 @@ def normalize_value(input_value):
     if ',' in inp_str:
         inp_str = inp_str.replace(',', '.')
     return float(inp_str)
+
+def parse_date(value):
+    """
+    Превращает строку типа '2025-08-01 00:00:00' в datetime.
+    """
+    return datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
 
 
 class QCProcessorApp:
@@ -110,9 +117,8 @@ class QCProcessorApp:
     def process_files(self):
         """Основная логика обработки файлов"""
         results = []
-        pcm_sample_dict = {}
+        pcm_wrong_sample_dict = {}
         counter = 0
-        pcm_sample_array = []
         
         # Ищем все Excel-файлы
         self.update_status("Поиск Excel-файлов...")
@@ -163,50 +169,53 @@ class QCProcessorApp:
                 wb.close()
                 continue
 
+            error_text = ''
             counter += 1
             # 1. Берем информацию из M1
             project_info = pcm_qc_sheet["B2"].value
-            date_analyzed = pcm_qc_sheet["L3"].value
+            date_analyzed = str(pcm_qc_sheet["L3"].value)
+            
+            analyst = str(pcm_qc_sheet["S3"].value)
+            
+            self.log_message('*' * 50)
+            self.log_message(f" project_info: {project_info} ")      
 
-            if project_info is not None:
-                if str(project_info).strip() != '':
-                    if str(project_info) not in str(filepath):
+            self.log_message(f'date_analyzed: {date_analyzed}')
+
+
+            try:
+                date_analyzed_right = parse_date(date_analyzed)
+            except:
+                error_text += ' No Correct Date'
+
+            if analyst.strip() == 'None':
+                error_text += ' No analyst'
+
+            if project_info is None:
+                if str(project_info).strip() == '':
+                    if str(project_info) in str(filepath):
                         project_info = find_project_in_sample(wb["Sample"]["Q5"].value)
 
-            
+            amount_samples = 0
             row_count = 0
-            
-            client_sample_id = None
-            original_sample_value = 0
-            qc_sample_value = 0
-            self.log_message('*' * 50)
-            self.log_message(f" project_info: {project_info} ")
-
             for i in range(8, 46):
                 row_count += 1
-                if (str(pcm_qc_sheet[f"F{i}"].value) != 'None' 
-                    and str(pcm_qc_sheet[f"G{i}"].value) != 'None'
-                    and str(pcm_qc_sheet[f"H{i}"].value) != 'None'):
+                if str(pcm_qc_sheet[f"F{i}"].value) != 'None':
+                    amount_samples+=1
 
-                        client_sample_id = str(project_info) + '-' + str(row_count)
+            if amount_samples == 0:
+                error_text += ' No samples'
 
-                        if client_sample_id in pcm_sample_dict:
-                            continue
-
-                        qc_sample_value = normalize_value(pcm_qc_sheet[f"F{i}"].value)
-                        original_sample_value = normalize_value(pcm_qc_sheet[f"B{i}"].value)
-
-                        pcm_sample_dict[client_sample_id] = {'original_value' : original_sample_value,
-                                                                    'qc_value' : qc_sample_value,
-                                                                    'analyst' : str(pcm_qc_sheet["S3"].value), 
-                                                                    'date_analyzed' : str(date_analyzed) }
+            pcm_wrong_sample_dict[project_info] = {'error_text' : error_text, 
+                                                   'date' : date_analyzed, 
+                                                   'analyst': analyst}
 
             wb.close()
             time.sleep(0.5) 
-        output_file = Path(self.folder_path) / "qc_pcm_raw_data.json"
+        output_file = Path(self.folder_path) / "qc_pcm_wrong_files.json"
 
         with open(output_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(pcm_sample_dict, indent=4, ensure_ascii=False))
+            f.write(json.dumps(pcm_wrong_sample_dict, indent=4, ensure_ascii=False))
 
         self.log_message(f" PCM Complete ✓ ")
         
@@ -222,7 +231,8 @@ class QCProcessorApp:
         self.log_message("\nСохраняю результат...")
         
         output_file = Path(self.folder_path) / "qc_data.xlsx"
-        
+
+
         self.progress['value'] = 100
         self.update_status("Готово!")
         self.log_message(f"\n✓ Сохранено: {output_file}")
@@ -241,4 +251,4 @@ if __name__ == "__main__":
     app = QCProcessorApp(root)
     root.mainloop()
 
-    # pyinstaller --onefile --windowed --name="QC_PCM_Collector" parsing_all_pcm_files.py
+    # pyinstaller --onefile --windowed --name="QC_PCM_Collector_Wrong_files" parsing_all_pcm_broken_files.py
