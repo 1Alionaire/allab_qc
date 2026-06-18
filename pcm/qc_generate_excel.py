@@ -7,7 +7,7 @@ from datetime import datetime
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
-
+import time
 
 INPUT_FILE = Path("qc_pcm_raw_data.json")
 OUTPUT_FOLDER = Path("monthly_reports")
@@ -20,6 +20,7 @@ def parse_date(value):
     Превращает строку типа '2025-08-01 00:00:00' в datetime.
     """
     return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+    # return datetime.fromisoformat(value)
 
 
 def clean_sheet_name(name):
@@ -113,6 +114,8 @@ with INPUT_FILE.open("r", encoding="utf-8") as file:
 grouped_data = defaultdict(lambda: defaultdict(list))
 
 for lab_id, info in raw_data.items():
+    print(lab_id)
+    print(info["date_analyzed"])
     date_analyzed = parse_date(info["date_analyzed"])
 
     # Важно: месяц берём именно из date_analyzed, а не из lab_id
@@ -126,7 +129,7 @@ for lab_id, info in raw_data.items():
         "analyst": analyst,
         "original_value": info.get("original_value"),
         "qc_value": info.get("qc_value"),
-        "low_range_sr": info.get("low_range_sr"),
+        # "low_range_sr": info.get("low_range_sr"),
     }
 
     grouped_data[month_key][analyst].append(row)
@@ -138,7 +141,7 @@ headers = [
     "analyst",
     "original_value",
     "qc_value",
-    "low_range_sr",
+    # "low_range_sr",
 ]
 
 
@@ -173,7 +176,7 @@ for month_key, analysts_dict in sorted(grouped_data.items()):
                 row["analyst"],
                 row["original_value"],
                 row["qc_value"],
-                row["low_range_sr"],
+                # row["low_range_sr"],
             ])
 
         # Формат даты в колонке B
@@ -184,6 +187,8 @@ for month_key, analysts_dict in sorted(grouped_data.items()):
 
     output_file = OUTPUT_FOLDER / f"qc_pcm_{month_key}.xlsx"
     wb.save(output_file)
+    wb.close()
+    time.sleep(0.5)
 
     print(f"Saved: {output_file}")
 

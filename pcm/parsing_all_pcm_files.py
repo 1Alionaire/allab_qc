@@ -26,6 +26,17 @@ def normalize_value(input_value):
         inp_str = inp_str.replace(',', '.')
     return float(inp_str)
 
+def random_calc_point(original_value):
+    operation = random.choice(['-', '+'])
+    if operation == '-':
+        value = random.choice([1, 2, 3])
+        if (float(original_value) - value) > 0:
+            return float(original_value) - value
+        else:
+            return 2.0
+    else:
+        value = random.choice([1, 2, 3])
+        return float(inp_str) + value
 
 class QCProcessorApp:
     def __init__(self, root):
@@ -151,18 +162,14 @@ class QCProcessorApp:
                 wb.close()
                 continue
             
-            # есть ли в репорте данные
-            pcm_qc_sheet = wb["Count-Recount"]
-            if pcm_qc_sheet.max_row < 6:
-                self.log_message(f"  ⊘ Лист PLM_TEM_Report пустой")
-                wb.close()
-                continue
-                
             if 'Conflict' in str(filepath):
                 self.log_message(f" Duplicate Conflict")
                 wb.close()
                 continue
 
+            self.log_message("*" * 50)
+            
+            pcm_qc_sheet = wb["Count-Recount"]
             counter += 1
             # 1. Берем информацию из M1
             project_info = pcm_qc_sheet["B2"].value
@@ -173,34 +180,58 @@ class QCProcessorApp:
                     if str(project_info) not in str(filepath):
                         project_info = find_project_in_sample(wb["Sample"]["Q5"].value)
 
+            self.log_message(f'project_info: {project_info}')
             
             row_count = 0
-            
             client_sample_id = None
             original_sample_value = 0
             qc_sample_value = 0
             self.log_message('*' * 50)
             self.log_message(f" project_info: {project_info} ")
 
+            last_sample_row = 0
             for i in range(8, 46):
+                if str(pcm_qc_sheet[f"B{i}"].value).strip().lower() == 'overload':
+                    continue
+                if str(pcm_qc_sheet[f"B{i}"].value) == 'None':
+                    last_sample_row = i - 1
+                    break
+                if float(pcm_qc_sheet[f"B{i}"].value) <= 0.5:
+                    last_sample_row = i - 1
+                    break
+
+            self.log_message(f'last_sample_row: {last_sample_row}')
+
+            have_sample = False
+            for i in range(8, last_sample_row):
                 row_count += 1
                 if (str(pcm_qc_sheet[f"F{i}"].value) != 'None' 
                     and str(pcm_qc_sheet[f"G{i}"].value) != 'None'
                     and str(pcm_qc_sheet[f"H{i}"].value) != 'None'):
+                        
+                        have_sample = True
+                        if str(pcm_qc_sheet[f"A{i}"].value) != '0':
+                            client_sample_id = str(project_info) + '-' + str(row_count)
 
-                        client_sample_id = str(project_info) + '-' + str(row_count)
+                            if client_sample_id in pcm_sample_dict:
+                                continue
 
-                        if client_sample_id in pcm_sample_dict:
-                            continue
+                            qc_sample_value = normalize_value(pcm_qc_sheet[f"F{i}"].value)
+                            original_sample_value = normalize_value(pcm_qc_sheet[f"B{i}"].value)
 
-                        qc_sample_value = normalize_value(pcm_qc_sheet[f"F{i}"].value)
-                        original_sample_value = normalize_value(pcm_qc_sheet[f"B{i}"].value)
-
-                        pcm_sample_dict[client_sample_id] = {'original_value' : original_sample_value,
-                                                                    'qc_value' : qc_sample_value,
-                                                                    'analyst' : str(pcm_qc_sheet["S3"].value), 
-                                                                    'date_analyzed' : str(date_analyzed) }
-
+                            pcm_sample_dict[client_sample_id] = {'original_value' : original_sample_value,
+                                                                        'qc_value' : qc_sample_value,
+                                                                        'analyst' : str(pcm_qc_sheet["S3"].value), 
+                                                                        'date_analyzed' : str(date_analyzed) }
+            
+            if have_sample == False:
+                self.log_message(f'have_sample: {have_sample}')
+                if (last_sample_row - 7) < 4:
+                    self.log_message(f'amount_samples: {(last_sample_row - 7)}')
+                    pass
+                else:
+                    pcm_sample_dict[str(project_info) + '-1'] = {'error' : 'No sample'}
+                    
             wb.close()
             time.sleep(0.5) 
         output_file = Path(self.folder_path) / "qc_pcm_raw_data.json"

@@ -19,7 +19,6 @@ df = pd.read_json(source_path, orient="index", encoding="utf-8")
 df.index.name = "project_number"
 df = df.reset_index()
 
-
 # Парсим дату и добавляем колонку месяца в формате "2026-01"
 df["date"]  = pd.to_datetime(df["date"], errors="coerce")
 df = df.dropna(subset=["date"])                                # отбрасываем строки с битой датой
@@ -35,13 +34,6 @@ for month, month_df in df.groupby("month"):
             result[analyst] = []
             continue
 
-        agg = (
-            analyst_df
-            .groupby("date", as_index=False)[["plm_count", "nob_count", "tem_count"]]
-            .sum()
-        )
-        # datetime → строка, чтобы json.dump не ругался
-        agg["date"] = agg["date"].dt.strftime("%Y-%m-%d")
         result[analyst] = agg.to_dict(orient="records")
 
     output_path = output_dir / f"analysts_{month}.json"
