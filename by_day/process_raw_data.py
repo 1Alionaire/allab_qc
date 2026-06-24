@@ -363,39 +363,34 @@ def get_tem_dup_random_sample_from_project(samples_list, analyst):
 
 
 def get_plm_replicate_samples(projects):
-    plm_total_samples = 0
     plm_projects = {key: value for key, value in projects.items() if value['plm_count'] > 0}
     samples = []
 
     for key, value in plm_projects.items():
-        
-        before = plm_total_samples
-        after = before + value['plm_count']
-        plm_replicates_before = math.ceil(before / 15)  # before // 15
-        plm_replicates_after = math.ceil(after / 15)  #after // 15
-        plm_replicates_to_add = plm_replicates_after - plm_replicates_before
+        plm_replicates_to_add = math.ceil(value['plm_count'] / 15)
 
-        if plm_replicates_to_add > 0:
-            for i in range(plm_replicates_to_add):
-                sample_duplicate = get_plm_rep_sample_from_project(value['plm_analysis'], value['analyst'])
-                duplicate_record = {
-                                'type' : 'plm_rep',
-                                'date': value['date'], 
-                                'project': key,
-                                'lab id': sample_duplicate['whole_original']['Lab ID'],
-                                'file_name': value['file_name'],
-                                'sample': sample_duplicate['sample'],
-                                '1st_analyst_name': value['analyst'],
-                                '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
-                                '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
-                                'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
-                                'dup_asb_type': sample_duplicate['dup_asb_type'],
-                                'dup_asb_percent': sample_duplicate['dup_asb_percent'],
-                                'whole_original': sample_duplicate['whole_original'],
-                                'whole_duplicate': sample_duplicate['whole_duplicate']
-                            }
-                samples.append(duplicate_record)
-        plm_total_samples = after        
+        logging.info('=' * 30 + str(key))
+        logging.info(f'plm_replicates_to_add: {plm_replicates_to_add}')
+
+        for i in range(plm_replicates_to_add):
+            sample_duplicate = get_plm_rep_sample_from_project(value['plm_analysis'], value['analyst'])
+            duplicate_record = {
+                            'type' : 'plm_rep',
+                            'date': value['date'], 
+                            'project': key,
+                            'lab id': sample_duplicate['whole_original']['Lab ID'],
+                            'file_name': value['file_name'],
+                            'sample': sample_duplicate['sample'],
+                            '1st_analyst_name': value['analyst'],
+                            '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
+                            '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
+                            'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
+                            'dup_asb_type': sample_duplicate['dup_asb_type'],
+                            'dup_asb_percent': sample_duplicate['dup_asb_percent'],
+                            'whole_original': sample_duplicate['whole_original'],
+                            'whole_duplicate': sample_duplicate['whole_duplicate']
+                        }
+            samples.append(duplicate_record)   
 
     return samples
 
@@ -408,8 +403,8 @@ def get_plm_duplicate_samples(projects):
         
         before = plm_total_samples
         after = before + value['plm_count']
-        plm_duplicates_before = math.ceil(before / 50)  # before // 50
-        plm_duplicates_after = math.ceil(after / 50)  # after // 50
+        plm_duplicates_before = math.ceil(before / 40)  # before // 50
+        plm_duplicates_after = math.ceil(after / 40)  # after // 50
         plm_duplicates_to_add = plm_duplicates_after - plm_duplicates_before
 
         if plm_duplicates_to_add > 0:
@@ -446,35 +441,31 @@ def get_nob_replicate_samples(projects):
         before = nob_total_samples
         after = before + value['nob_count']
 
-        blanks_before = math.ceil(before / 100)  # before // 100
-        blanks_after = math.ceil(after / 100)  # after // 100
+        blanks_before = math.ceil(before / 80)  # before // 100
+        blanks_after = math.ceil(after / 80)  # after // 100
         blanks_to_add = blanks_after - blanks_before
-        
-        nob_replicates_before = math.ceil(before / 15)  # before // 15
-        nob_replicates_after = math.ceil(after / 15)  # after // 15
-        nob_replicates_to_add = nob_replicates_after - nob_replicates_before
-        
 
-        if nob_replicates_to_add > 0:
-            for i in range(nob_replicates_to_add):
-                sample_duplicate = get_nob_rep_random_sample_from_project(value['nob_analysis'], value['analyst'])
-                duplicate_record = {
-                                'type' : 'nob_rep',
-                                'date': value['date'], 
-                                'project': key,
-                                'lab id': sample_duplicate['whole_original']['Lab ID'],
-                                'file_name': value['file_name'],
-                                'sample': sample_duplicate['sample'],
-                                '1st_analyst_name': value['analyst'],
-                                '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
-                                '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
-                                'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
-                                'dup_asb_type': sample_duplicate['dup_asb_type'],
-                                'dup_asb_percent': sample_duplicate['dup_asb_percent'],
-                                'whole_original': sample_duplicate['whole_original'],
-                                'whole_duplicate': sample_duplicate['whole_duplicate']
-                            }
-                samples.append(duplicate_record)
+        nob_replicates_to_add = math.ceil(value['nob_count'] / 15)
+
+        for i in range(nob_replicates_to_add):
+            sample_duplicate = get_nob_rep_random_sample_from_project(value['nob_analysis'], value['analyst'])
+            duplicate_record = {
+                            'type' : 'nob_rep',
+                            'date': value['date'], 
+                            'project': key,
+                            'lab id': sample_duplicate['whole_original']['Lab ID'],
+                            'file_name': value['file_name'],
+                            'sample': sample_duplicate['sample'],
+                            '1st_analyst_name': value['analyst'],
+                            '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
+                            '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
+                            'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
+                            'dup_asb_type': sample_duplicate['dup_asb_type'],
+                            'dup_asb_percent': sample_duplicate['dup_asb_percent'],
+                            'whole_original': sample_duplicate['whole_original'],
+                            'whole_duplicate': sample_duplicate['whole_duplicate']
+                        }
+            samples.append(duplicate_record)
 
         if blanks_to_add > 0:
             for i in range(blanks_to_add):
@@ -502,8 +493,8 @@ def get_nob_duplicate_samples(projects):
         before = nob_total_samples
         after = before + value['nob_count']
 
-        duplicates_before = math.ceil(before / 50)  # before // 50
-        duplicates_after = math.ceil(after / 50)  # after // 50
+        duplicates_before = math.ceil(before / 40)  # before // 50
+        duplicates_after = math.ceil(after / 40)  # after // 50
         duplicates_to_add = duplicates_after - duplicates_before
 
         if duplicates_to_add > 0:
@@ -539,34 +530,31 @@ def get_tem_replicate_samples(projects):
         before = tem_total_samples
         after = before + value['tem_count']
 
-        blanks_before = math.ceil(before / 100)  # before // 100
-        blanks_after = math.ceil(after / 100)  # after // 100
+        blanks_before = math.ceil(before / 80)  # before // 100
+        blanks_after = math.ceil(after / 80)  # after // 100
         blanks_to_add = blanks_after - blanks_before
         
-        replicates_before = math.ceil(before / 15)  # before // 15
-        replicates_after = math.ceil(after / 15)  # after // 15
-        replicates_to_add = replicates_after - replicates_before
+        replicates_to_add =  math.ceil(value['tem_count'] / 15)
 
-        if replicates_to_add > 0:
-            for i in range(replicates_to_add):
-                sample_duplicate = get_tem_rep_random_sample_from_project(value['tem_analysis'], value['analyst'])
-                duplicate_record = {
-                                'type' : 'tem_rep',
-                                'date': value['date'], 
-                                'project': key,
-                                'lab id': sample_duplicate['whole_original']['Lab ID'],
-                                'file_name': value['file_name'],
-                                'sample': sample_duplicate['sample'],
-                                '1st_analyst_name': value['analyst'],
-                                '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
-                                '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
-                                'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
-                                'dup_asb_type': sample_duplicate['dup_asb_type'],
-                                'dup_asb_percent': sample_duplicate['dup_asb_percent'],
-                                'whole_original': sample_duplicate['whole_original'],
-                                'whole_duplicate': sample_duplicate['whole_duplicate']
-                            }
-                samples.append(duplicate_record)
+        for i in range(replicates_to_add):
+            sample_duplicate = get_tem_rep_random_sample_from_project(value['tem_analysis'], value['analyst'])
+            duplicate_record = {
+                            'type' : 'tem_rep',
+                            'date': value['date'], 
+                            'project': key,
+                            'lab id': sample_duplicate['whole_original']['Lab ID'],
+                            'file_name': value['file_name'],
+                            'sample': sample_duplicate['sample'],
+                            '1st_analyst_name': value['analyst'],
+                            '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
+                            '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
+                            'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
+                            'dup_asb_type': sample_duplicate['dup_asb_type'],
+                            'dup_asb_percent': sample_duplicate['dup_asb_percent'],
+                            'whole_original': sample_duplicate['whole_original'],
+                            'whole_duplicate': sample_duplicate['whole_duplicate']
+                        }
+            samples.append(duplicate_record)
 
         if blanks_to_add > 0:
             for i in range(blanks_to_add):
@@ -594,8 +582,8 @@ def get_tem_duplicate_samples(projects):
         before = tem_total_samples
         after = before + value['tem_count']
 
-        duplicates_before = math.ceil(before / 50)  # before // 50
-        duplicates_after = math.ceil(after / 50) # after // 50 
+        duplicates_before = math.ceil(before / 40)  # before // 50
+        duplicates_after = math.ceil(after / 40) # after // 50 
         duplicates_to_add = duplicates_after - duplicates_before
 
         if duplicates_to_add > 0:

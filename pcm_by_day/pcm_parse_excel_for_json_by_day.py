@@ -214,7 +214,8 @@ class QCProcessorApp:
                         continue
 
                     pcm_qc_sheet = wb.Worksheets("Count-Recount")
-
+                    result_sheet = wb.Worksheets("Sample")
+                    
                     project_info = pcm_qc_sheet.Range("B2").Value
                     date_analyzed = pcm_qc_sheet.Range("L3").Value
 
@@ -229,11 +230,9 @@ class QCProcessorApp:
                     analyst = str(pcm_qc_sheet.Range('S3').Value).strip()
 
                     if str(project_info) == 'None':
-                        result_sheet = wb.Worksheets("Sample")
                         project_info = find_project_in_sample(result_sheet.Range('Q5').Value)
                     
                     if str(analyst) == 'None':
-                        result_sheet = wb.Worksheets("Sample")
                         analyst = str(result_sheet.Range('B37').Value).strip()
                         if str(analyst) == 'None':
                             analyst = str(result_sheet.Range('A37').Value).strip()
@@ -246,17 +245,22 @@ class QCProcessorApp:
                     qc_sample_value = 0
                     last_sample_row = 0
 
-                    for i in range(8, 46):
-                        if str(pcm_qc_sheet.Range(f"B{i}").Value).strip().lower() == 'overload':
-                            continue
-                        if str(pcm_qc_sheet.Range(f"B{i}").Value) == 'None':
-                            last_sample_row = i - 1
-                            break
-                        if float(pcm_qc_sheet.Range(f"B{i}").Value) <= 0.5:
-                            last_sample_row = i - 1
+                    sample_amount = 0
+                    logging.info('*' * 50)
+                    logging.info(f'project_info: {project_info}')
+                    logging.info(f'sample_amount: {sample_amount}')
+                    for i in range(5, 33):
+                        if (str(result_sheet.Range(f"A{i}").Value).strip() != ''
+                         and str(result_sheet.Range(f"A{i}").Value).strip() != 'None'):
+                            sample_amount += 1
+                            logging.info(f'sample_amount: {sample_amount}')
+                        else:
                             break
 
+                    logging.info(f'sample_amount: {sample_amount}')
+                    last_sample_row = 7 + sample_amount
                     self.log_message(f'last_sample_row: {last_sample_row}')
+                    
                     have_sample = False
                     
                     for i in range(8, last_sample_row):
@@ -279,22 +283,22 @@ class QCProcessorApp:
 
                     if have_sample == False:
                         self.log_message(f'have_sample: {have_sample}')
-                        if (last_sample_row - 7) < 4:
-                            self.log_message(f'amount_samples: {(last_sample_row - 7)}')
+                        if sample_amount < 4:
+                            self.log_message(f'amount_samples: {sample_amount}')
                             pass
                         else:
                             random_sample_row = 0
-                            amount_samples = last_sample_row - 7
                             while True:
                                 random_sample_row = random.randint(8, last_sample_row)
-                                amount_samples = amount_samples - 1
-                                if str(pcm_qc_sheet.Range(f'B{random_sample_row}').Value).strip().lower() != 'overload':
+                                sample_amount = sample_amount - 1
+                                if (str(pcm_qc_sheet.Range(f'B{random_sample_row}').Value).strip().lower() != 'overload' 
+                                     and pcm_qc_sheet.Range(f'B{random_sample_row}').Value > 0.6):
                                     break
 
-                                if amount_samples == 0:
+                                if sample_amount == 0:
                                     break
                             
-                            if amount_samples == 0:
+                            if sample_amount == 0:
                                 continue
                                 
                             self.log_message(f'random_sample_row: {random_sample_row}')
@@ -308,6 +312,8 @@ class QCProcessorApp:
                             self.log_message(f'qc_sample_new_value: {qc_sample_new_value}')
 
                             pcm_qc_sheet.Range(f'F{random_sample_row}').Value = qc_sample_new_value
+                            pcm_qc_sheet.Range(f'G{random_sample_row}').Value = round((qc_sample_new_value / 100) / 0.00785, 2)
+                            pcm_qc_sheet.Range(f'H{random_sample_row}').Value = "A"
 
                             pcm_sample_dict[client_sample_id] = {'original_value' : original_sample_value,
                                                                     'qc_value' : qc_sample_new_value,

@@ -1,13 +1,9 @@
-import sys
-import json
-import logging
-import threading
-import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from collections import defaultdict
 from pathlib import Path
-
-import win32com.client as win32
+import gc
+import logging
 import pythoncom
+import win32com.client as win32
 
 logging.basicConfig(
     filename='app.log',
@@ -103,92 +99,266 @@ tem_columns_dict = {
 }
 
 def fill_all_excel_files(inp_data):
-    pythoncom.CoInitialize()
-    excel = win32.Dispatch("Excel.Application")
-    excel.Visible = False
-    excel.DisplayAlerts = False
-    excel.AutomationSecurity = 1  # без Protected View
+    samples_by_file = defaultdict(list)
 
+    for sample in inp_data:
+        fname = sample.get("file_name", "")
+
+        if not fname:
+            logging.warning("Sample без file_name: %s", sample)
+            continue
+
+        file_path = Path(fname).resolve()
+        print(file_path)
+        if not file_path.exists():
+            logging.error("Файл не существует: %s", file_path)
+            continue
+
+        if file_path.name.startswith("~$"):
+            logging.warning("Пропущен lock-файл: %s", file_path)
+            continue
+
+        if file_path.suffix.lower() not in {".xlsx", ".xlsm", ".xls"}:
+            logging.warning("Не Excel-файл: %s", file_path)
+            continue
+
+        samples_by_file[file_path].append(sample)
+
+    pythoncom.CoInitialize()
+
+    excel = None
     processed = 0
     errors = 0
+
     try:
-        for sample in inp_data:
-            fname = sample.get("file_name", "")
-            logging.info(fname)
+        excel = win32.DispatchEx("Excel.Application")
+        excel.Visible = False
+        excel.DisplayAlerts = False
+        excel.AskToUpdateLinks = False
+        excel.EnableEvents = False
 
+        # Отключаем макросы
+        excel.AutomationSecurity = 3
+
+        for file_path, samples in samples_by_file.items():
             wb = None
+            plm_analysis_ws = None
+            tem_analysis_ws = None
+
             try:
-                wb = excel.Workbooks.Open(str(Path(fname).resolve()))
+                logging.info(
+                    "Opening: %s | samples: %s",
+                    file_path,
+                    len(samples)
+                )
 
-                type_analysis = sample.get("type", "")
-                print(f'project: {sample.get("project", "")}')
-                print(f'type_analysis: {type_analysis}')
-                if ('nob' in type_analysis) or ('plm' in type_analysis):
-                    plm_analysis_ws = wb.Worksheets("SampleAnalyses")
-                    count = 8
-                    last_sample_count = 0
-                    while True:
-                        value = plm_analysis_ws.Range(f"B{count}").Value
-                        if value is not None and str(value).strip() != "":
-                            count += 1
+                wb = excel.Workbooks.Open(
+                    str(file_path),
+                    UpdateLinks=0,
+                    ReadOnly=False,
+                    IgnoreReadOnlyRecommended=True,
+                    Notify=False,
+                    AddToMru=False
+                )
+
+                logging.info(
+                    "Workbook.Name=%s | FullName=%s | ReadOnly=%s",
+                    wb.Name,
+                    wb.FullName,
+                    wb.ReadOnly
+                )
+
+                if wb.ReadOnly:
+                    raise PermissionError(
+                        f"Файл открыт только для чтения: {file_path}"
+                    )
+
+                for sample in samples:
+                    type_analysis = str(
+                        sample.get("type", "")
+                    ).lower()
+
+                    logging.info(
+                        "Project=%s | type=%s",
+                        sample.get("project", ""),
+                        type_analysis
+                    )
+
+                    if "nob" in type_analysis or "plm" in type_analysis:
+                        plm_analysis_ws = wb.Worksheets(
+                            "SampleAnalyses"
+                        )
+
+                        row_number = 8
+
+                        while True:
+                            value = plm_analysis_ws.Range(
+                                f"B{row_number}"
+                            ).Value
+
+                            if value is None or str(value).strip() == "":
+                                break
+
+                            row_number += 1
+
+                        duplicate = sample.get("whole_duplicate")
+
+                        if duplicate:
+                            for col, text_key in plm_columns_dict.items():
+                                value = duplicate.get(text_key)
+
+                                if value in (None, "None"):
+                                    value = ""
+
+                                plm_analysis_ws.Cells(
+                                    row_number,
+                                    col
+                                ).Value = value
+
                         else:
-                            last_sample_count = count
-                            break
+                            plm_analysis_ws.Cells(
+                                row_number, 1
+                            ).Value = "bl"
 
-                    if sample.get("whole_duplicate"):
-                        for col, text_key in plm_columns_dict.items():
-                            v = sample["whole_duplicate"].get(text_key, "None")
-                            plm_analysis_ws.Cells(last_sample_count, col).Value = "" if v == "None" else v
+                            plm_analysis_ws.Cells(
+                                row_number, 2
+                            ).Value = "1"
+
+                            plm_analysis_ws.Cells(
+                                row_number, 3
+                            ).Value = ""
+
+                            plm_analysis_ws.Cells(
+                                row_number, 5
+                            ).Value = ""
+
+                            plm_analysis_ws.Cells(
+                                row_number, 22
+                            ).Value = 100
+
+                            for type_col, point_col in (
+                                (23, 24),
+                                (25, 26),
+                                (27, 28),
+                                (29, 30),
+                            ):
+                                plm_analysis_ws.Cells(
+                                    row_number,
+                                    type_col
+                                ).Value = "NAD"
+
+                                plm_analysis_ws.Cells(
+                                    row_number,
+                                    point_col
+                                ).Value = 50
+
                     else:
-                        plm_analysis_ws.Cells(last_sample_count, 1).Value = "bl"
-                        plm_analysis_ws.Cells(last_sample_count, 2).Value = "1"
-                        plm_analysis_ws.Cells(last_sample_count, 3).Value = ""
-                        plm_analysis_ws.Cells(last_sample_count, 5).Value = ""
-                        plm_analysis_ws.Cells(last_sample_count, 22).Value = "100"
-                        plm_analysis_ws.Cells(last_sample_count, 23).Value = "NAD"
-                        plm_analysis_ws.Cells(last_sample_count, 24).Value = "50"
-                        plm_analysis_ws.Cells(last_sample_count, 25).Value = "NAD"
-                        plm_analysis_ws.Cells(last_sample_count, 26).Value = "50"
-                        plm_analysis_ws.Cells(last_sample_count, 27).Value = "NAD"
-                        plm_analysis_ws.Cells(last_sample_count, 28).Value = "50"
-                        plm_analysis_ws.Cells(last_sample_count, 29).Value = "NAD"
-                        plm_analysis_ws.Cells(last_sample_count, 30).Value = "50"
-                else:
-                    tem_analysis_ws = wb.Worksheets("TEM_Calculation")
-                    count = 6
-                    last_sample_count = 0
-                    while True:
-                        value = tem_analysis_ws.Range(f"B{count}").Value
-                        if value is not None and str(value).strip() != "":
-                            count += 1
+                        tem_analysis_ws = wb.Worksheets(
+                            "TEM_Calculation"
+                        )
+
+                        row_number = 6
+
+                        while True:
+                            value = tem_analysis_ws.Range(
+                                f"B{row_number}"
+                            ).Value
+
+                            if value is None or str(value).strip() == "":
+                                break
+
+                            row_number += 1
+
+                        duplicate = sample.get("whole_duplicate")
+
+                        if duplicate:
+                            for col, text_key in tem_columns_dict.items():
+                                value = duplicate.get(text_key)
+
+                                if value in (None, "None"):
+                                    value = ""
+
+                                tem_analysis_ws.Cells(
+                                    row_number,
+                                    col
+                                ).Value = value
+
                         else:
-                            last_sample_count = count
-                            break
+                            tem_analysis_ws.Cells(
+                                row_number, 1
+                            ).Value = "bl"
 
-                    if sample.get("whole_duplicate"):
-                        for col, text_key in tem_columns_dict.items():
-                            v = sample["whole_duplicate"].get(text_key, "")
-                            tem_analysis_ws.Cells(last_sample_count, col).Value = "" if v == "None" else v
-                    else:
-                        tem_analysis_ws.Cells(last_sample_count, 1).Value = "bl"
-                        tem_analysis_ws.Cells(last_sample_count, 2).Value = "1"
-                        tem_analysis_ws.Cells(last_sample_count, 16).Value = "D8"
-                        tem_analysis_ws.Cells(last_sample_count, 17).Value = "E8"
+                            tem_analysis_ws.Cells(
+                                row_number, 2
+                            ).Value = "1"
+
+                            tem_analysis_ws.Cells(
+                                row_number, 16
+                            ).Value = "D8"
+
+                            tem_analysis_ws.Cells(
+                                row_number, 17
+                            ).Value = "E8"
+
+                    processed += 1
+
+                logging.info(
+                    "Saving: %s | ReadOnly=%s",
+                    wb.FullName,
+                    wb.ReadOnly
+                )
 
                 wb.Save()
-                processed += 1
 
-            except Exception as e:
+                logging.info("Saved successfully: %s", file_path)
+
+            except Exception as error:
                 errors += 1
-                logging.info(f"  ✗ Ошибка обработки файла: {e}")
+
+                logging.exception(
+                    "Ошибка обработки файла: %s",
+                    file_path
+                )
+
+                print(f"Ошибка обработки {file_path}: {error}")
+
+                raise
+
             finally:
+                plm_analysis_ws = None
+                tem_analysis_ws = None
+
                 if wb is not None:
                     try:
+                        # Уже сохранили через wb.Save()
                         wb.Close(SaveChanges=False)
                     except Exception:
-                        pass
+                        logging.exception(
+                            "Ошибка закрытия книги: %s",
+                            file_path
+                        )
+
+                wb = None
+                gc.collect()
+
     finally:
-        excel.Quit()
+        if excel is not None:
+            try:
+                excel.EnableEvents = True
+            except Exception:
+                pass
+
+            try:
+                excel.Quit()
+            except Exception:
+                logging.exception("Ошибка закрытия Excel")
+
+        excel = None
+        gc.collect()
         pythoncom.CoUninitialize()
 
-    logging.info(f"done processed={processed} errors={errors}")
+    logging.info(
+        "Done: processed=%s errors=%s",
+        processed,
+        errors
+    )

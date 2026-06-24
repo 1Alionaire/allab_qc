@@ -346,9 +346,9 @@ class QCProcessorApp:
         #     f.write(json.dumps(result_json, indent=4, ensure_ascii=False))
 
         generated_duplicates_array = generate_duplicates(result_json)
-        # output_total_array_file = Path(self.folder_path) / "qc_result_data.json"
-        # with open(output_total_array_file, "a", encoding="utf-8") as f:
-        #     f.write(json.dumps(generated_duplicates_array, indent=4, ensure_ascii=False))
+        output_total_array_file = Path(self.folder_path) / "qc_result_data.json"
+        with open(output_total_array_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(generated_duplicates_array, indent=4, ensure_ascii=False))
 
         fill_all_excel_files(generated_duplicates_array)
 
