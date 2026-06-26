@@ -4,6 +4,10 @@ import gc
 import logging
 import pythoncom
 import win32com.client as win32
+import shutil
+import tempfile
+import time
+import sys
 
 logging.basicConfig(
     filename='app.log',
@@ -98,6 +102,21 @@ tem_columns_dict = {
     19: 'NA or PS'
 }
 
+def copy_with_retry(src, dst, attempts=5, delay=2):
+    """Копирование с повторами — на случай если файл на Synology занят."""
+    for i in range(attempts):
+        try:
+            shutil.copy2(src, dst)
+            return
+        except (PermissionError, OSError) as e:
+            if i == attempts - 1:
+                raise
+            logging.warning(
+                "Копирование занято, повтор %s/%s: %s",
+                i + 1, attempts, e
+            )
+            time.sleep(delay)
+
 def fill_all_excel_files(inp_data):
     samples_by_file = defaultdict(list)
 
@@ -145,6 +164,10 @@ def fill_all_excel_files(inp_data):
             plm_analysis_ws = None
             tem_analysis_ws = None
 
+            # Временная локальная папка — Excel не касается сети
+            local_dir = Path(tempfile.mkdtemp())
+            local_path = local_dir / file_path.name
+
             try:
                 logging.info(
                     "Opening: %s | samples: %s",
@@ -152,8 +175,11 @@ def fill_all_excel_files(inp_data):
                     len(samples)
                 )
 
+                # Сеть → локально
+                copy_with_retry(file_path, local_path)
+
                 wb = excel.Workbooks.Open(
-                    str(file_path),
+                    str(local_path),
                     UpdateLinks=0,
                     ReadOnly=False,
                     IgnoreReadOnlyRecommended=True,
@@ -170,7 +196,7 @@ def fill_all_excel_files(inp_data):
 
                 if wb.ReadOnly:
                     raise PermissionError(
-                        f"Файл открыт только для чтения: {file_path}"
+                        f"Файл открыт только для чтения: {local_path}"
                     )
 
                 for sample in samples:
@@ -302,14 +328,15 @@ def fill_all_excel_files(inp_data):
 
                     processed += 1
 
-                logging.info(
-                    "Saving: %s | ReadOnly=%s",
-                    wb.FullName,
-                    wb.ReadOnly
-                )
-
+                logging.info("Saving locally: %s", local_path)
                 wb.Save()
+                wb.Close(SaveChanges=False)
+                wb = None
+                gc.collect()
 
+                # Локально → сеть
+                logging.info("Copying back to: %s", file_path)
+                copy_with_retry(local_path, file_path)
                 logging.info("Saved successfully: %s", file_path)
 
             except Exception as error:
@@ -321,8 +348,7 @@ def fill_all_excel_files(inp_data):
                 )
 
                 print(f"Ошибка обработки {file_path}: {error}")
-
-                raise
+                # raise убран — один битый файл не роняет весь прогон
 
             finally:
                 plm_analysis_ws = None
@@ -330,17 +356,16 @@ def fill_all_excel_files(inp_data):
 
                 if wb is not None:
                     try:
-                        # Уже сохранили через wb.Save()
                         wb.Close(SaveChanges=False)
                     except Exception:
                         logging.exception(
                             "Ошибка закрытия книги: %s",
-                            file_path
+                            local_path
                         )
 
                 wb = None
+                shutil.rmtree(local_dir, ignore_errors=True)
                 gc.collect()
-
     finally:
         if excel is not None:
             try:

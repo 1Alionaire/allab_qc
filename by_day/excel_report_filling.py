@@ -139,117 +139,121 @@ types_analysis = ['plm', 'nob', 'tem']
 
 def generate_report_excels(input_data):
     for type_analysis in types_analysis:
-        wb = Workbook()
-        total_dups_ws = wb.create_sheet(f"{type_analysis.upper()} DUPs")
-        total_reps_ws = wb.create_sheet(f"{type_analysis.upper()} REPs")
-
-        decor_header_total_list(total_dups_ws, 'dup')
-        decor_header_total_list(total_reps_ws, 'rep')
-
         chosen_type_data = [element for element in input_data if type_analysis in element['type']]
-        text_date_for_name = chosen_type_data[0]['date'][5:7] + '-' + chosen_type_data[0]['date'][8:10] + '-' + chosen_type_data[0]['date'][0:4]
+        if chosen_type_data:
+            wb = Workbook()
+            total_dups_ws = wb.create_sheet(f"{type_analysis.upper()} DUPs")
+            total_reps_ws = wb.create_sheet(f"{type_analysis.upper()} REPs")
 
-        # DUPs
-        row = 3
-        count = 1
-        type_dup_data = [element for element in chosen_type_data if 'dup' in element['type']]
-        for record in type_dup_data:
-            text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
-            total_dups_ws[f'A{row}'] = count
-            total_dups_ws[f'B{row}'] = text_date_for_excel
-            total_dups_ws[f'C{row}'] = record['project']
-            total_dups_ws[f'D{row}'] = record['sample']
-            total_dups_ws[f'E{row}'] = record['1st_analyst_name']
-            total_dups_ws[f'F{row}'] = record['1st_analyst_asb_type']
-            total_dups_ws[f'G{row}'] = record['1st_analyst_asb_percent']
-            total_dups_ws[f'H{row}'] = record['dup_name']
-            total_dups_ws[f'I{row}'] = record['dup_asb_type']
-            total_dups_ws[f'J{row}'] = record['dup_asb_percent']
-            total_dups_ws[f'K{row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent']) 
-            total_dups_ws[f'L{row}'] = 1
-            row += 1
-            count += 1
+            decor_header_total_list(total_dups_ws, 'dup')
+            decor_header_total_list(total_reps_ws, 'rep')
 
-        # REPs
-        row = 3
-        count = 1
-        type_rep_data = [element for element in chosen_type_data if 'rep' in element['type']]
-        for record in type_rep_data:
-            text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
-            total_reps_ws[f'A{row}'] = count
-            total_reps_ws[f'B{row}'] = text_date_for_excel
-            total_reps_ws[f'C{row}'] = record['project']
-            total_reps_ws[f'M{row}'] = -1
-            total_reps_ws[f'N{row}'] = 1
-            if '-1000' not in record['lab id']:
-                new_date = str(datetime.strptime(text_date_for_excel, "%m-%d-%Y").date() + timedelta(days=1))
-                total_reps_ws[f'D{row}'] = record['sample']
-                total_reps_ws[f'E{row}'] = record['1st_analyst_name']
-                total_reps_ws[f'F{row}'] = record['1st_analyst_asb_type']
-                total_reps_ws[f'G{row}'] = record['1st_analyst_asb_percent']
-                total_reps_ws[f'H{row}'] = new_date[5:7] + '-' + new_date[8:10] + '-' + new_date[0:4]
-                total_reps_ws[f'I{row}'] = record['dup_name']
-                total_reps_ws[f'J{row}'] = record['dup_asb_type']
-                total_reps_ws[f'K{row}'] = record['dup_asb_percent'] 
-                total_reps_ws[f'L{row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
-            else:
-                total_reps_ws[f'D{row}'] = 'BL'
-                total_reps_ws[f'E{row}'] = record['1st_analyst_name']
-                total_reps_ws[f'F{row}'] = 'NAD'
-                total_reps_ws[f'G{row}'] = "NAD"
-                total_reps_ws[f'H{row}'] = text_date_for_excel #
-                total_reps_ws[f'I{row}'] = record['dup_name'] #
-                total_reps_ws[f'J{row}'] = 'NAD'
-                total_reps_ws[f'K{row}'] = 'NAD'
-                total_reps_ws[f'L{row}'] = 0
-            row += 1
-            count += 1
-        
-        # Per analyst:
-        unique_analysts = {item["1st_analyst_name"] for item in chosen_type_data}
-        for analyst in unique_analysts:
-            selected_analyst_ws = wb.create_sheet(f"{analyst}")
+            text_date_for_name = chosen_type_data[0]['date'][5:7] + '-' + chosen_type_data[0]['date'][8:10] + '-' + chosen_type_data[0]['date'][0:4]
+            # DUPs
+            row = 3
+            count = 1
+            type_dup_data = [element for element in chosen_type_data if 'dup' in element['type']]
+            if type_dup_data:
+                for record in type_dup_data:
+                    text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
+                    total_dups_ws[f'A{row}'] = count
+                    total_dups_ws[f'B{row}'] = text_date_for_excel
+                    total_dups_ws[f'C{row}'] = record['project']
+                    total_dups_ws[f'D{row}'] = record['sample']
+                    total_dups_ws[f'E{row}'] = record['1st_analyst_name']
+                    total_dups_ws[f'F{row}'] = record['1st_analyst_asb_type']
+                    total_dups_ws[f'G{row}'] = record['1st_analyst_asb_percent']
+                    total_dups_ws[f'H{row}'] = record['dup_name']
+                    total_dups_ws[f'I{row}'] = record['dup_asb_type']
+                    total_dups_ws[f'J{row}'] = record['dup_asb_percent']
+                    total_dups_ws[f'K{row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent']) 
+                    total_dups_ws[f'L{row}'] = 1
+                    row += 1
+                    count += 1
 
-            decor_header_analyst_list(selected_analyst_ws)
-            selected_analyst_data = [element for element in chosen_type_data if element['1st_analyst_name'] == analyst ] 
-            
-            dup_row = 4
-            rep_row = 4
-            for record in selected_analyst_data:
-                if 'dup' in record['type']:
-                    selected_analyst_ws[f'A{dup_row}'] = record['1st_analyst_name']
-                    selected_analyst_ws[f'B{dup_row}'] = record['1st_analyst_asb_type']
-                    selected_analyst_ws[f'C{dup_row}'] = record['1st_analyst_asb_percent']
-                    selected_analyst_ws[f'D{dup_row}'] = record['dup_name']
-                    selected_analyst_ws[f'E{dup_row}'] = record['dup_asb_type']
-                    selected_analyst_ws[f'F{dup_row}'] = record['dup_asb_percent']
-                    selected_analyst_ws[f'G{dup_row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
-                    selected_analyst_ws[f'H{dup_row}'] = -1
-                    selected_analyst_ws[f'I{dup_row}'] = 1
-                    dup_row += 1
-                else:
-                    selected_analyst_ws[f'K{rep_row}'] = record['1st_analyst_name']
-                    selected_analyst_ws[f'R{rep_row}'] = -1
-                    selected_analyst_ws[f'S{rep_row}'] = 1
-
+            # REPs
+            row = 3
+            count = 1
+            type_rep_data = [element for element in chosen_type_data if 'rep' in element['type']]
+            if type_rep_data:
+                for record in type_rep_data:
+                    text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
+                    total_reps_ws[f'A{row}'] = count
+                    total_reps_ws[f'B{row}'] = text_date_for_excel
+                    total_reps_ws[f'C{row}'] = record['project']
+                    total_reps_ws[f'M{row}'] = -1
+                    total_reps_ws[f'N{row}'] = 1
                     if '-1000' not in record['lab id']:
-                        selected_analyst_ws[f'L{rep_row}'] = record['1st_analyst_asb_type'][:4] 
-                        selected_analyst_ws[f'M{rep_row}'] = record['1st_analyst_asb_percent'] #
-                        selected_analyst_ws[f'N{rep_row}'] = record['dup_name']
-                        selected_analyst_ws[f'O{rep_row}'] = record['dup_asb_type'][:4]
-                        selected_analyst_ws[f'P{rep_row}'] = record['dup_asb_percent']
-                        selected_analyst_ws[f'Q{rep_row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
+                        new_date = str(datetime.strptime(text_date_for_excel, "%m-%d-%Y").date() + timedelta(days=1))
+                        total_reps_ws[f'D{row}'] = record['sample']
+                        total_reps_ws[f'E{row}'] = record['1st_analyst_name']
+                        total_reps_ws[f'F{row}'] = record['1st_analyst_asb_type']
+                        total_reps_ws[f'G{row}'] = record['1st_analyst_asb_percent']
+                        total_reps_ws[f'H{row}'] = new_date[5:7] + '-' + new_date[8:10] + '-' + new_date[0:4]
+                        total_reps_ws[f'I{row}'] = record['dup_name']
+                        total_reps_ws[f'J{row}'] = record['dup_asb_type']
+                        total_reps_ws[f'K{row}'] = record['dup_asb_percent'] 
+                        total_reps_ws[f'L{row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
                     else:
-                        selected_analyst_ws[f'L{rep_row}'] = 'NAD'
-                        selected_analyst_ws[f'M{rep_row}'] = 'NAD'
-                        selected_analyst_ws[f'N{rep_row}'] = replicate_analyst(record['1st_analyst_name'])
-                        selected_analyst_ws[f'O{rep_row}'] = 'NAD'
-                        selected_analyst_ws[f'P{rep_row}'] = 'NAD'
-                        selected_analyst_ws[f'Q{rep_row}'] = 0
-                    rep_row += 1
+                        total_reps_ws[f'D{row}'] = 'BL'
+                        total_reps_ws[f'E{row}'] = record['1st_analyst_name']
+                        total_reps_ws[f'F{row}'] = 'NAD'
+                        total_reps_ws[f'G{row}'] = "NAD"
+                        total_reps_ws[f'H{row}'] = text_date_for_excel #
+                        total_reps_ws[f'I{row}'] = record['dup_name'] #
+                        total_reps_ws[f'J{row}'] = 'NAD'
+                        total_reps_ws[f'K{row}'] = 'NAD'
+                        total_reps_ws[f'L{row}'] = 0
+                    row += 1
+                    count += 1
+            
+            # Per analyst:
+            unique_analysts = {item["1st_analyst_name"] for item in chosen_type_data}
+            for analyst in unique_analysts:
+                selected_analyst_ws = wb.create_sheet(f"{analyst}")
 
-        out_path = os.path.join(get_writable_dir(),  f"{type_analysis.upper()}_{text_date_for_name}.xlsx")
-        wb.save(out_path)
+                decor_header_analyst_list(selected_analyst_ws)
+                selected_analyst_data = [element for element in chosen_type_data if element['1st_analyst_name'] == analyst ] 
+                
+                if selected_analyst_data:
+                    dup_row = 4
+                    rep_row = 4
+                    for record in selected_analyst_data:
+                        if 'dup' in record['type']:
+                            selected_analyst_ws[f'A{dup_row}'] = record['1st_analyst_name']
+                            selected_analyst_ws[f'B{dup_row}'] = record['1st_analyst_asb_type']
+                            selected_analyst_ws[f'C{dup_row}'] = record['1st_analyst_asb_percent']
+                            selected_analyst_ws[f'D{dup_row}'] = record['dup_name']
+                            selected_analyst_ws[f'E{dup_row}'] = record['dup_asb_type']
+                            selected_analyst_ws[f'F{dup_row}'] = record['dup_asb_percent']
+                            selected_analyst_ws[f'G{dup_row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
+                            selected_analyst_ws[f'H{dup_row}'] = -1
+                            selected_analyst_ws[f'I{dup_row}'] = 1
+                            dup_row += 1
+                        else:
+                            selected_analyst_ws[f'K{rep_row}'] = record['1st_analyst_name']
+                            selected_analyst_ws[f'R{rep_row}'] = -1
+                            selected_analyst_ws[f'S{rep_row}'] = 1
+
+                            if '-1000' not in record['lab id']:
+                                selected_analyst_ws[f'L{rep_row}'] = record['1st_analyst_asb_type'][:4] 
+                                selected_analyst_ws[f'M{rep_row}'] = record['1st_analyst_asb_percent'] #
+                                selected_analyst_ws[f'N{rep_row}'] = record['dup_name']
+                                selected_analyst_ws[f'O{rep_row}'] = record['dup_asb_type'][:4]
+                                selected_analyst_ws[f'P{rep_row}'] = record['dup_asb_percent']
+                                selected_analyst_ws[f'Q{rep_row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
+                            else:
+                                selected_analyst_ws[f'L{rep_row}'] = 'NAD'
+                                selected_analyst_ws[f'M{rep_row}'] = 'NAD'
+                                selected_analyst_ws[f'N{rep_row}'] = replicate_analyst(record['1st_analyst_name'])
+                                selected_analyst_ws[f'O{rep_row}'] = 'NAD'
+                                selected_analyst_ws[f'P{rep_row}'] = 'NAD'
+                                selected_analyst_ws[f'Q{rep_row}'] = 0
+                            rep_row += 1
+
+            out_path = os.path.join(get_writable_dir(),  f"{type_analysis.upper()}_{text_date_for_name}.xlsx")
+            wb.save(out_path)
+            wb.close()
 
 
 # if __name__ == '__main__':

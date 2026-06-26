@@ -16,6 +16,7 @@ import pythoncom
 import win32com.client as win32
 import random
 from pcm_excel_report_filling import generate_report_excels
+xlUp = -4162
 
 def find_project_in_sample(inp_sample_id):
     final_result = ''
@@ -54,11 +55,14 @@ def find_project_in_sample(inp_sample_id):
 
 def normalize_value(input_value):
     inp_str = str(input_value).strip()
-    if '..' in inp_str:
-        inp_str = inp_str.replace('..', '.')
-    if ',' in inp_str:
-        inp_str = inp_str.replace(',', '.')
-    return float(inp_str)
+    if inp_str != 'None':
+        if '..' in inp_str:
+            inp_str = inp_str.replace('..', '.')
+        if ',' in inp_str:
+            inp_str = inp_str.replace(',', '.')
+        return float(inp_str)
+    else:
+        return 0
 
 def checking_file_name(filename):
     str_elements = ['tem', 'nob', 'plm', 'conflict', 'mold', 'air', 'lead', 'wipe', 'asbest']
@@ -246,18 +250,14 @@ class QCProcessorApp:
                     last_sample_row = 0
 
                     sample_amount = 0
-                    logging.info('*' * 50)
-                    logging.info(f'project_info: {project_info}')
-                    logging.info(f'sample_amount: {sample_amount}')
-                    for i in range(5, 33):
-                        if (str(result_sheet.Range(f"A{i}").Value).strip() != ''
-                         and str(result_sheet.Range(f"A{i}").Value).strip() != 'None'):
-                            sample_amount += 1
-                            logging.info(f'sample_amount: {sample_amount}')
-                        else:
-                            break
+                    
+                    result_ws_last_row = result_sheet.Cells(result_sheet.Rows.Count, 17).End(xlUp).Row
 
-                    logging.info(f'sample_amount: {sample_amount}')
+                    for i in range(5, result_ws_last_row):
+                        if (str(result_sheet.Range(f"Q{i}").Value).strip().count('-') > 1 # str(sheet[f'D{row}'].value).strip().count('-') > 1:
+                         and str(result_sheet.Range(f"X{i}").Value).strip().count('-') > 1):
+                            sample_amount += 1
+
                     last_sample_row = 7 + sample_amount
                     self.log_message(f'last_sample_row: {last_sample_row}')
                     
@@ -266,7 +266,9 @@ class QCProcessorApp:
                     for i in range(8, last_sample_row):
                         if (str(pcm_qc_sheet.Range(f'F{i}').Value) != 'None'
                             and str(pcm_qc_sheet.Range(f'G{i}').Value) != 'None'
-                            and str(pcm_qc_sheet.Range(f'H{i}').Value) != 'None'):
+                            and str(pcm_qc_sheet.Range(f'H{i}').Value) != 'None') and (str(pcm_qc_sheet.Range(f'F{i}').Value) != ''
+                            and str(pcm_qc_sheet.Range(f'G{i}').Value) != ''
+                            and str(pcm_qc_sheet.Range(f'H{i}').Value) != ''):
                             have_sample = True
 
                             client_sample_id = str(project_info) + '-' + str(i - 7)

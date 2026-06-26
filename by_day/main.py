@@ -356,7 +356,7 @@ class QCProcessorApp:
         
         if not results:
             self.update_status("Готово (нет данных)")
-            messagebox.showwarning("Внимание", "Не найдено файлов с листом PLM_TEM_Report")
+            messagebox.showwarning("Внимание", "Done!")
             self.btn_run.config(state=NORMAL)
             self.btn_select.config(state=NORMAL)
             return
@@ -389,4 +389,4 @@ if __name__ == "__main__":
     app = QCProcessorApp(root)
     root.mainloop()
 
-    # pyinstaller --onefile --windowed --hidden-import babel.numbers --hidden-import babel.dates --collect-all babel --name="QC_Generate_by_day" parse_excel_for_json_by_day.py
+    # pyinstaller --onefile --hidden-import babel.numbers --hidden-import babel.dates --collect-all babel --name="PLM_QC_Generate_by_day" main.py

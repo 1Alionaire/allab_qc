@@ -129,8 +129,7 @@ def tem_calc_asb_percent(duplicate_sample):
                 'point': inter_result}
 
     return {'percent': round(((float_residue * inter_result) / 100), 2), 
-            'point': inter_result}
-    
+            'point': inter_result}   
 
 
 def get_plm_rep_sample_from_project(samples_list, analyst):
@@ -169,10 +168,11 @@ def get_plm_rep_sample_from_project(samples_list, analyst):
     }
 
 def get_plm_dup_sample_from_project(samples_list, analyst):
+    samples_list_duplicate = copy.deepcopy(samples_list)
 
     while True:
-        random_index = random.randint(0, len(samples_list) - 1)
-        removed_element = samples_list.pop(random_index)
+        random_index = random.randint(0, len(samples_list_duplicate) - 1)
+        removed_element = samples_list_duplicate.pop(random_index)
         if removed_element['Type Asb 1 Option'] != 'PS':
             original_sample = removed_element
             break
@@ -203,10 +203,11 @@ def get_plm_dup_sample_from_project(samples_list, analyst):
 
 def get_nob_rep_random_sample_from_project(samples_list, analyst): 
     rep_analyst = replicate_analyst(analyst) 
-    
+    samples_list_duplicate = copy.deepcopy(samples_list)
+
     while True:
-        random_index = random.randint(0, len(samples_list) - 1)
-        removed_element = samples_list.pop(random_index)
+        random_index = random.randint(0, len(samples_list_duplicate) - 1)
+        removed_element = samples_list_duplicate.pop(random_index)
         if removed_element['Type Asb 1 Option'] != 'PS':
             if removed_element['Method'] != 'None':
                 original_sample = removed_element
@@ -242,10 +243,12 @@ def get_nob_rep_random_sample_from_project(samples_list, analyst):
         'whole_duplicate': duplicate_sample
     }
 
-def get_nob_dup_random_sample_from_project(samples_list, analyst):     
+def get_nob_dup_random_sample_from_project(samples_list, analyst): 
+    samples_list_duplicate = copy.deepcopy(samples_list)
+     
     while True:
-        random_index = random.randint(0, len(samples_list) - 1)
-        removed_element = samples_list.pop(random_index)
+        random_index = random.randint(0, len(samples_list_duplicate) - 1)
+        removed_element = samples_list_duplicate.pop(random_index)
         if removed_element['Type Asb 1 Option'] != 'PS':
             if removed_element['Method'] != 'None':
                 original_sample = removed_element
@@ -282,9 +285,10 @@ def get_nob_dup_random_sample_from_project(samples_list, analyst):
     }
 
 def get_tem_rep_random_sample_from_project(samples_list, analyst): 
+    samples_list_duplicate = copy.deepcopy(samples_list)
     while True:
-        random_index = random.randint(0, len(samples_list) - 1)
-        removed_element = samples_list.pop(random_index)
+        random_index = random.randint(0, len(samples_list_duplicate) - 1)
+        removed_element = samples_list_duplicate.pop(random_index)
         if (removed_element['Asb Type Type 1'] != 'PS' 
             and len(removed_element['Lab ID']) > 3
             and removed_element['Client ID'] != 'R' 
@@ -322,9 +326,10 @@ def get_tem_rep_random_sample_from_project(samples_list, analyst):
     }
 
 def get_tem_dup_random_sample_from_project(samples_list, analyst): 
+    samples_list_duplicate = copy.deepcopy(samples_list)
     while True:
-        random_index = random.randint(0, len(samples_list) - 1)
-        removed_element = samples_list.pop(random_index)
+        random_index = random.randint(0, len(samples_list_duplicate) - 1)
+        removed_element = samples_list_duplicate.pop(random_index)
         if (removed_element['Asb Type Type 1'] != 'PS' 
             and len(removed_element['Lab ID']) > 3
             and removed_element['Client ID'] != 'R' 
@@ -369,9 +374,6 @@ def get_plm_replicate_samples(projects):
     for key, value in plm_projects.items():
         plm_replicates_to_add = math.ceil(value['plm_count'] / 15)
 
-        logging.info('=' * 30 + str(key))
-        logging.info(f'plm_replicates_to_add: {plm_replicates_to_add}')
-
         for i in range(plm_replicates_to_add):
             sample_duplicate = get_plm_rep_sample_from_project(value['plm_analysis'], value['analyst'])
             duplicate_record = {
@@ -400,7 +402,7 @@ def get_plm_duplicate_samples(projects):
     samples = []
 
     for key, value in plm_projects.items():
-        
+
         before = plm_total_samples
         after = before + value['plm_count']
         plm_duplicates_before = math.ceil(before / 40)  # before // 50

@@ -9,3 +9,4 @@ build/
 *.jsonl
 *.json
 *.spec
+*.pyc
