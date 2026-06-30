@@ -371,29 +371,32 @@ def get_plm_replicate_samples(projects):
     plm_projects = {key: value for key, value in projects.items() if value['plm_count'] > 0}
     samples = []
 
-    for key, value in plm_projects.items():
-        plm_replicates_to_add = math.ceil(value['plm_count'] / 15)
-
-        for i in range(plm_replicates_to_add):
-            sample_duplicate = get_plm_rep_sample_from_project(value['plm_analysis'], value['analyst'])
-            duplicate_record = {
-                            'type' : 'plm_rep',
-                            'date': value['date'], 
-                            'project': key,
-                            'lab id': sample_duplicate['whole_original']['Lab ID'],
-                            'file_name': value['file_name'],
-                            'sample': sample_duplicate['sample'],
-                            '1st_analyst_name': value['analyst'],
-                            '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
-                            '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
-                            'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
-                            'dup_asb_type': sample_duplicate['dup_asb_type'],
-                            'dup_asb_percent': sample_duplicate['dup_asb_percent'],
-                            'whole_original': sample_duplicate['whole_original'],
-                            'whole_duplicate': sample_duplicate['whole_duplicate']
-                        }
-            samples.append(duplicate_record)   
-
+    if plm_projects:
+        for key, value in plm_projects.items():
+            plm_replicates_to_add = math.ceil(value['plm_count'] / 15)
+            print(f'PLM REP')
+            print(f'project: {key}')
+            for i in range(plm_replicates_to_add):
+                sample_duplicate = get_plm_rep_sample_from_project(value['plm_analysis'], value['analyst'])
+                duplicate_record = {
+                                'type' : 'plm_rep',
+                                'date': value['date'], 
+                                'project': key,
+                                'lab id': sample_duplicate['whole_original']['Lab ID'],
+                                'file_name': value['file_name'],
+                                'sample': sample_duplicate['sample'],
+                                '1st_analyst_name': value['analyst'],
+                                '1st_analyst_asb_type': sample_duplicate['1st_analyst_asb_type'],
+                                '1st_analyst_asb_percent': sample_duplicate['1st_analyst_asb_percent'],
+                                'dup_name': sample_duplicate['whole_duplicate']['Client ID'][-2:], 
+                                'dup_asb_type': sample_duplicate['dup_asb_type'],
+                                'dup_asb_percent': sample_duplicate['dup_asb_percent'],
+                                'whole_original': sample_duplicate['whole_original'],
+                                'whole_duplicate': sample_duplicate['whole_duplicate']
+                            }
+                samples.append(duplicate_record)   
+    else:
+        return []
     return samples
 
 def get_plm_duplicate_samples(projects):
@@ -402,7 +405,8 @@ def get_plm_duplicate_samples(projects):
     samples = []
 
     for key, value in plm_projects.items():
-
+        print(f'PLM DUP')
+        print(f'project: {key}')
         before = plm_total_samples
         after = before + value['plm_count']
         plm_duplicates_before = math.ceil(before / 40)  # before // 50
@@ -440,6 +444,8 @@ def get_nob_replicate_samples(projects):
     samples = []
 
     for key, value in nob_projects.items():
+        print(f'NOB REP')
+        print(f'project: {key}')
         before = nob_total_samples
         after = before + value['nob_count']
 
@@ -492,6 +498,8 @@ def get_nob_duplicate_samples(projects):
     samples = []
 
     for key, value in nob_projects.items():
+        print(f'NOB DUP')
+        print(f'project: {key}')
         before = nob_total_samples
         after = before + value['nob_count']
 
@@ -529,6 +537,8 @@ def get_tem_replicate_samples(projects):
     samples = []
 
     for key, value in tem_projects.items():
+        print(f'TEM REP')
+        print(f'project: {key}')
         before = tem_total_samples
         after = before + value['tem_count']
 
@@ -581,6 +591,8 @@ def get_tem_duplicate_samples(projects):
     samples = []
 
     for key, value in tem_projects.items():
+        print(f'TEM DUP')
+        print(f'project: {key}')
         before = tem_total_samples
         after = before + value['tem_count']
 

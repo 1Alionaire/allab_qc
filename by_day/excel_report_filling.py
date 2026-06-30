@@ -1,15 +1,12 @@
-import json
+
 from pathlib import Path
-import math
-import random
-import copy
 import os
 import logging
 import sys
 from openpyxl import load_workbook
 from openpyxl import Workbook
 from datetime import datetime, timedelta
-import logging, traceback, os, sys
+import logging, os, sys
 import pythoncom
 import win32com.client as win32
 import os
@@ -63,92 +60,6 @@ def calc_std_dev(first_inp, second_inp):
     else:
         return 0
 
-def decor_header_total_list(ws, type):
-    ws.merge_cells('A1:A2')
-    ws.merge_cells('B1:B2')
-    ws.merge_cells('C1:C2')
-    ws.merge_cells('D1:D2')
-    ws.merge_cells('E1:G1')
-    ws.merge_cells('L1:L2')
-
-    ws['A1'] = 'QC #'
-    ws['B1'] = 'Date'
-    ws['C1'] = 'Batch #'
-    ws['D1'] = 'Sample'
-    ws['E1'] = '1st Analyst original results'
-    ws['E2'] = 'Initial'
-    ws['F2'] = 'Asb Type'
-    ws['G2'] = 'Asbestos %'
-
-
-    # DUPS
-    if type == 'dup':
-        ws.merge_cells('K1:K2')
-        ws.merge_cells('H1:J1')
-        
-        ws['H1'] = 'Dups results'
-        ws['H2'] = 'Initial'
-        ws['I2'] = 'Asb Type'
-        ws['J2'] = 'Asbestos %'
-        ws['K1'] = 'R'
-        ws['L1'] = 'UCL'
-    else:
-        ws.merge_cells('M1:M2')
-        ws.merge_cells('N1:N2')
-        ws.merge_cells('H1:K1')
-
-        ws['H1'] = 'Reps results'
-        ws['H2'] = 'Date'
-        ws['I2'] = 'Initial'
-        ws['J2'] = 'Asb Type'
-        ws['K2'] = 'Asbestos %'
-        ws['L1'] = 'R'
-        ws['M1'] = 'LCL'
-        ws['N1'] = 'UCL'
-
-def decor_header_analyst_list(ws):
-    ws.merge_cells('A1:I1')
-    ws.merge_cells('A2:C2')
-    ws.merge_cells('D2:F2')
-    ws.merge_cells('G2:G3')
-    ws.merge_cells('H2:H3')
-    ws.merge_cells('I2:I3')
-
-    ws.merge_cells('K1:S1')
-    ws.merge_cells('K2:M2')
-    ws.merge_cells('N2:P2')
-    ws.merge_cells('Q2:Q3')
-    ws.merge_cells('R2:R3')
-    ws.merge_cells('S2:S3')
-
-    ws['A1'] = 'DUPLICATE'
-    ws['A2'] = '1st Analyst original result'
-    ws['D2'] = '1st Analyst QC result'
-    ws['G2'] = 'R Value'
-    ws['H2'] = 'LCL'
-    ws['I2'] = 'UCL'
-
-    ws['A3'] = 'Initial'
-    ws['B3'] = 'Asbs type'
-    ws['C3'] = '%'
-    ws['D3'] = 'Initial'
-    ws['E3'] = 'Asbs type'
-    ws['F3'] = '%'
-
-    ws['K1'] = 'REPLICATE'
-    ws['K2'] = '1st Analyst original result'
-    ws['N2'] = '2nd Analyst result'
-    ws['Q2'] = 'R Value'
-    ws['R2'] = 'LCL'
-    ws['S2'] = 'UCL'
-
-    ws['K3'] = 'Initial'
-    ws['L3'] = 'Asbs type'
-    ws['M3'] = '%'
-    ws['N3'] = 'Initial'
-    ws['O3'] = 'Asbs type'
-    ws['P3'] = '%'
-
 types_analysis = ['plm', 'nob', 'tem']
 
 def generate_report_excels(input_data, files):
@@ -161,14 +72,7 @@ def generate_report_excels(input_data, files):
             excel.DisplayAlerts = False
             wb = None
             try:
-                print(files.get(type_analysis))
-
-                # wb = excel.Workbooks.Open(filename)
-                
                 wb = excel.Workbooks.Open(files.get(type_analysis))
-
-
-                print(wb.Worksheets)
 
                 worksheet_names = [
                     wb.Worksheets(i).Name
@@ -179,23 +83,15 @@ def generate_report_excels(input_data, files):
                 total_dups_name = f"{type_analysis.upper()} DUPs"
                 total_reps_name = f"{type_analysis.upper()} REPs"
 
-                print(total_dups_name)
-                print(total_reps_name)
-
-                # if total_dups_name in wb.Worksheets:
-                #     print('wow')
-                #     
                 total_dups_ws = wb.Worksheets(total_dups_name)
                 total_reps_ws = wb.Worksheets(total_reps_name)
-                # if total_reps_name in wb.Worksheets:
-                    
 
                 dups_last_row = total_dups_ws.Cells(total_dups_ws.Rows.Count, 8).End(xlUp).Row
                 
 
                 text_date_for_name = chosen_type_data[0]['date'][5:7] + '-' + chosen_type_data[0]['date'][8:10] + '-' + chosen_type_data[0]['date'][0:4]
                 # DUPs
-                row = dups_last_row
+                row = dups_last_row + 1
                 count = int(total_dups_ws.Range(f'A{row}').Value)
                 type_dup_data = [element for element in chosen_type_data if 'dup' in element['type']]
 
@@ -219,7 +115,7 @@ def generate_report_excels(input_data, files):
 
                 reps_last_row = total_reps_ws.Cells(total_reps_ws.Rows.Count, 8).End(xlUp).Row
                 # REPs
-                row = reps_last_row
+                row = reps_last_row + 1
                 count = int(total_reps_ws.Range(f'A{row}').Value)
                 type_rep_data = [element for element in chosen_type_data if 'rep' in element['type']]
 
@@ -265,7 +161,6 @@ def generate_report_excels(input_data, files):
                         selected_analyst_ws = wb.Worksheets.Add()
                         selected_analyst_ws.Name = analyst
 
-                    # decor_header_analyst_list(selected_analyst_ws)
                     selected_analyst_data = [element for element in chosen_type_data if element['1st_analyst_name'] == analyst ] 
                     
                     if selected_analyst_data:
@@ -304,7 +199,6 @@ def generate_report_excels(input_data, files):
                                     selected_analyst_ws.Range(f'Q{rep_row}').Value = 0
                                 rep_row += 1
 
-                # out_path = os.path.join(get_writable_dir(),  f"{type_analysis.upper()}_{text_date_for_name}.xlsx")
                 wb.Save()
 
             finally:

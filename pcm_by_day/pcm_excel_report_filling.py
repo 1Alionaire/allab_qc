@@ -1,15 +1,9 @@
-import json
 from pathlib import Path
-import math
-import random
-import copy
-import os
-import logging
-import sys
-from openpyxl import load_workbook
-from openpyxl import Workbook
-from datetime import datetime, timedelta
-import logging, traceback, os, sys
+import os, sys
+import pythoncom
+import win32com.client as win32
+xlUp = -4162
+
 
 def get_writable_dir():
     if getattr(sys, 'frozen', False):
@@ -19,37 +13,52 @@ def get_writable_dir():
 script_dir = Path(__file__).resolve().parent
 date = None
 
-types_analysis = ['plm', 'nob', 'tem']
 
-def generate_report_excels(input_data):
-    wb = Workbook()
-    unique_analysts = {value["analyst"] for value in input_data.values()}
+def generate_report_excels(input_data, input_file):
+    pythoncom.CoInitialize()
+    excel = win32.Dispatch("Excel.Application")
+    excel.Visible = False
+    excel.DisplayAlerts = False
+    wb = None
+    try:
+        wb = excel.Workbooks.Open(input_file)
+        worksheet_names = [
+                    wb.Worksheets(i).Name
+                    for i in range(1, wb.Worksheets.Count + 1)
+                ]
+        
+        unique_analysts = {value["analyst"] for value in input_data.values()}
 
-    date_for_excel_file_raw = list(input_data.items())[0][1]['date_analyzed']
+        for analyst in unique_analysts:
 
-    date_for_excel_file = date_for_excel_file_raw[5:7] + '-' + date_for_excel_file_raw[8:10] + '-' + date_for_excel_file_raw[0:4]
-    for analyst in unique_analysts:
-        selected_analyst_ws = wb.create_sheet(f"{analyst}")
-        selected_analyst_data = {key: value for key, value in input_data.items() if value['analyst'] == analyst }
+            if analyst in worksheet_names:
+                selected_analyst_ws = wb.Worksheets(analyst)
+            else:
+                selected_analyst_ws = wb.Worksheets.Add()
+                selected_analyst_ws.Name = analyst
 
-        selected_analyst_ws['A1'] = 'Lab ID'
-        selected_analyst_ws['B1'] = 'Date Analyzed'
-        selected_analyst_ws['C1'] = 'Analyst'
-        selected_analyst_ws['D1'] = 'Original Value'
-        selected_analyst_ws['E1'] = 'QC Value'
+            selected_analyst_data = {key: value for key, value in input_data.items() if value['analyst'] == analyst }
+            
+            last_row = selected_analyst_ws.Cells(selected_analyst_ws.Rows.Count, 1).End(xlUp).Row
+            row = last_row + 1
 
-        row = 2
-        for key, value in selected_analyst_data.items():
-            selected_analyst_ws[f'A{row}'] = key
-            selected_analyst_ws[f'B{row}'] = value['date_analyzed'][5:7] + '-' + value['date_analyzed'][8:10] + '-' + value['date_analyzed'][0:4]
-            selected_analyst_ws[f'c{row}'] = value['analyst']
-            selected_analyst_ws[f'D{row}'] = value['original_value']
-            selected_analyst_ws[f'E{row}'] = value['qc_value']
-            row += 1
+            for key, value in selected_analyst_data.items():
+                selected_analyst_ws.Range(f'A{row}').Value = key
+                selected_analyst_ws.Range(f'B{row}').Value = value['date_analyzed'][5:7] + '-' + value['date_analyzed'][8:10] + '-' + value['date_analyzed'][0:4]
+                selected_analyst_ws.Range(f'c{row}').Value = value['analyst']
+                selected_analyst_ws.Range(f'D{row}').Value = value['original_value']
+                selected_analyst_ws.Range(f'E{row}').Value = value['qc_value']
+                row += 1
 
-    out_path = os.path.join(get_writable_dir(),  f"PCM_{date_for_excel_file}.xlsx")
-    wb.save(out_path)
-
+        wb.Save()
+    finally:
+        if wb is not None:
+            try:
+                wb.Close(SaveChanges=False)
+            except Exception:
+                pass
+        excel.Quit()
+        pythoncom.CoUninitialize()
 
 # if __name__ == '__main__':
 #     file = script_dir / 'qc_result.json'
