@@ -76,6 +76,7 @@ class QCProcessorApp:
                                        foreground='white', borderwidth=2,
                                        date_pattern='mm.dd.yyyy')
         self.select_date.pack(pady=5)
+        self.files = {"plm": None, "nob": None, "tem": None}
 
         # Кнопка выбора папки
         self.btn_select = Button(
@@ -90,6 +91,16 @@ class QCProcessorApp:
         # Метка с выбранной папкой
         self.lbl_folder = Label(root, text="Папка не выбрана", wraplength=550)
         self.lbl_folder.pack(pady=5)
+
+        self.labels = {}
+        for key, caption in [("plm", "PLM File"),
+                             ("nob", "NOB File"),
+                             ("tem", "TEM File")]:
+            Button(root, text=f"Choose {caption}", width=20, height=2,
+                   command=lambda k=key: self.select_file(k)).pack(pady=5)
+            lbl = Label(root, text=f"{caption}: не выбран", wraplength=550)
+            lbl.pack(pady=2)
+            self.labels[key] = lbl
         
         # Кнопка запуска
         self.btn_run = Button(
@@ -114,6 +125,21 @@ class QCProcessorApp:
         self.log = Text(root, height=10, width=70, state=DISABLED)
         self.log.pack(pady=10)
     
+    def select_file(self, key):
+        file = filedialog.askopenfilename(
+            title="Выберите Excel-файл",
+            filetypes=[
+                ("Excel files", "*.xlsx *.xlsm *.xls"),
+                ("Excel 2007+", "*.xlsx"),
+                ("Excel with Macros", "*.xlsm"),
+                ("Excel 97-2003", "*.xls"),
+            ]
+        )
+        if file:
+            self.files[key] = file
+            self.labels[key].config(text=f"Файл: {Path(file).name}")
+            self.btn_run.config(state=NORMAL)
+
     def select_folder(self):
         folder = filedialog.askdirectory(title="Выберите папку с Excel-файлами")
         if folder:
@@ -134,6 +160,21 @@ class QCProcessorApp:
         self.root.update()
     
     def run_processing(self):
+
+        if not self.folder_path:
+            messagebox.showwarning("Warning", "Please choose folder for collect")
+            return
+        
+        if not self.select_date:
+            messagebox.showwarning("Warning", "Please select date")
+            return
+        
+        for key, value in self.files.items():
+            if value is None:
+                messagebox.showwarning("Warning", f"PLease Select {key.upper()} file ")
+                return
+
+        print(f'self.files: {self.files}')
         """Запускает обработку в отдельном потоке"""
         self.btn_run.config(state=DISABLED)
         self.btn_select.config(state=DISABLED)
@@ -352,7 +393,7 @@ class QCProcessorApp:
 
         fill_all_excel_files(generated_duplicates_array)
 
-        generate_report_excels(generated_duplicates_array)
+        generate_report_excels(generated_duplicates_array, self.files)
         
         if not results:
             self.update_status("Готово (нет данных)")

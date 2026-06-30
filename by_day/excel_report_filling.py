@@ -10,6 +10,20 @@ from openpyxl import load_workbook
 from openpyxl import Workbook
 from datetime import datetime, timedelta
 import logging, traceback, os, sys
+import pythoncom
+import win32com.client as win32
+import os
+import sys
+
+def get_file_path(filename):
+    """ЗАПИСЬ/ЧТЕНИЕ: файлы рядом с .exe (данные, конфиги, отчёты)"""
+    if getattr(sys, 'frozen', False):
+        base = os.path.dirname(sys.executable)
+    else:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, filename)
+
+xlUp = -4162
 
 def get_writable_dir():
     if getattr(sys, 'frozen', False):
@@ -137,124 +151,170 @@ def decor_header_analyst_list(ws):
 
 types_analysis = ['plm', 'nob', 'tem']
 
-def generate_report_excels(input_data):
+def generate_report_excels(input_data, files):
     for type_analysis in types_analysis:
         chosen_type_data = [element for element in input_data if type_analysis in element['type']]
         if chosen_type_data:
-            wb = Workbook()
-            total_dups_ws = wb.create_sheet(f"{type_analysis.upper()} DUPs")
-            total_reps_ws = wb.create_sheet(f"{type_analysis.upper()} REPs")
+            pythoncom.CoInitialize()
+            excel = win32.Dispatch("Excel.Application")
+            excel.Visible = False
+            excel.DisplayAlerts = False
+            wb = None
+            try:
+                print(files.get(type_analysis))
 
-            decor_header_total_list(total_dups_ws, 'dup')
-            decor_header_total_list(total_reps_ws, 'rep')
-
-            text_date_for_name = chosen_type_data[0]['date'][5:7] + '-' + chosen_type_data[0]['date'][8:10] + '-' + chosen_type_data[0]['date'][0:4]
-            # DUPs
-            row = 3
-            count = 1
-            type_dup_data = [element for element in chosen_type_data if 'dup' in element['type']]
-            if type_dup_data:
-                for record in type_dup_data:
-                    text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
-                    total_dups_ws[f'A{row}'] = count
-                    total_dups_ws[f'B{row}'] = text_date_for_excel
-                    total_dups_ws[f'C{row}'] = record['project']
-                    total_dups_ws[f'D{row}'] = record['sample']
-                    total_dups_ws[f'E{row}'] = record['1st_analyst_name']
-                    total_dups_ws[f'F{row}'] = record['1st_analyst_asb_type']
-                    total_dups_ws[f'G{row}'] = record['1st_analyst_asb_percent']
-                    total_dups_ws[f'H{row}'] = record['dup_name']
-                    total_dups_ws[f'I{row}'] = record['dup_asb_type']
-                    total_dups_ws[f'J{row}'] = record['dup_asb_percent']
-                    total_dups_ws[f'K{row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent']) 
-                    total_dups_ws[f'L{row}'] = 1
-                    row += 1
-                    count += 1
-
-            # REPs
-            row = 3
-            count = 1
-            type_rep_data = [element for element in chosen_type_data if 'rep' in element['type']]
-            if type_rep_data:
-                for record in type_rep_data:
-                    text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
-                    total_reps_ws[f'A{row}'] = count
-                    total_reps_ws[f'B{row}'] = text_date_for_excel
-                    total_reps_ws[f'C{row}'] = record['project']
-                    total_reps_ws[f'M{row}'] = -1
-                    total_reps_ws[f'N{row}'] = 1
-                    if '-1000' not in record['lab id']:
-                        new_date = str(datetime.strptime(text_date_for_excel, "%m-%d-%Y").date() + timedelta(days=1))
-                        total_reps_ws[f'D{row}'] = record['sample']
-                        total_reps_ws[f'E{row}'] = record['1st_analyst_name']
-                        total_reps_ws[f'F{row}'] = record['1st_analyst_asb_type']
-                        total_reps_ws[f'G{row}'] = record['1st_analyst_asb_percent']
-                        total_reps_ws[f'H{row}'] = new_date[5:7] + '-' + new_date[8:10] + '-' + new_date[0:4]
-                        total_reps_ws[f'I{row}'] = record['dup_name']
-                        total_reps_ws[f'J{row}'] = record['dup_asb_type']
-                        total_reps_ws[f'K{row}'] = record['dup_asb_percent'] 
-                        total_reps_ws[f'L{row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
-                    else:
-                        total_reps_ws[f'D{row}'] = 'BL'
-                        total_reps_ws[f'E{row}'] = record['1st_analyst_name']
-                        total_reps_ws[f'F{row}'] = 'NAD'
-                        total_reps_ws[f'G{row}'] = "NAD"
-                        total_reps_ws[f'H{row}'] = text_date_for_excel #
-                        total_reps_ws[f'I{row}'] = record['dup_name'] #
-                        total_reps_ws[f'J{row}'] = 'NAD'
-                        total_reps_ws[f'K{row}'] = 'NAD'
-                        total_reps_ws[f'L{row}'] = 0
-                    row += 1
-                    count += 1
-            
-            # Per analyst:
-            unique_analysts = {item["1st_analyst_name"] for item in chosen_type_data}
-            for analyst in unique_analysts:
-                selected_analyst_ws = wb.create_sheet(f"{analyst}")
-
-                decor_header_analyst_list(selected_analyst_ws)
-                selected_analyst_data = [element for element in chosen_type_data if element['1st_analyst_name'] == analyst ] 
+                # wb = excel.Workbooks.Open(filename)
                 
-                if selected_analyst_data:
-                    dup_row = 4
-                    rep_row = 4
-                    for record in selected_analyst_data:
-                        if 'dup' in record['type']:
-                            selected_analyst_ws[f'A{dup_row}'] = record['1st_analyst_name']
-                            selected_analyst_ws[f'B{dup_row}'] = record['1st_analyst_asb_type']
-                            selected_analyst_ws[f'C{dup_row}'] = record['1st_analyst_asb_percent']
-                            selected_analyst_ws[f'D{dup_row}'] = record['dup_name']
-                            selected_analyst_ws[f'E{dup_row}'] = record['dup_asb_type']
-                            selected_analyst_ws[f'F{dup_row}'] = record['dup_asb_percent']
-                            selected_analyst_ws[f'G{dup_row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
-                            selected_analyst_ws[f'H{dup_row}'] = -1
-                            selected_analyst_ws[f'I{dup_row}'] = 1
-                            dup_row += 1
+                wb = excel.Workbooks.Open(files.get(type_analysis))
+
+
+                print(wb.Worksheets)
+
+                worksheet_names = [
+                    wb.Worksheets(i).Name
+                    for i in range(1, wb.Worksheets.Count + 1)
+                ]
+
+                print(worksheet_names)
+                total_dups_name = f"{type_analysis.upper()} DUPs"
+                total_reps_name = f"{type_analysis.upper()} REPs"
+
+                print(total_dups_name)
+                print(total_reps_name)
+
+                # if total_dups_name in wb.Worksheets:
+                #     print('wow')
+                #     
+                total_dups_ws = wb.Worksheets(total_dups_name)
+                total_reps_ws = wb.Worksheets(total_reps_name)
+                # if total_reps_name in wb.Worksheets:
+                    
+
+                dups_last_row = total_dups_ws.Cells(total_dups_ws.Rows.Count, 8).End(xlUp).Row
+                
+
+                text_date_for_name = chosen_type_data[0]['date'][5:7] + '-' + chosen_type_data[0]['date'][8:10] + '-' + chosen_type_data[0]['date'][0:4]
+                # DUPs
+                row = dups_last_row
+                count = int(total_dups_ws.Range(f'A{row}').Value)
+                type_dup_data = [element for element in chosen_type_data if 'dup' in element['type']]
+
+                if type_dup_data:
+                    for record in type_dup_data:
+                        text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
+                        total_dups_ws.Range(f'A{row}').Value = count
+                        total_dups_ws.Range(f'B{row}').Value = text_date_for_excel
+                        total_dups_ws.Range(f'C{row}').Value = record['project']
+                        total_dups_ws.Range(f'D{row}').Value = record['sample']
+                        total_dups_ws.Range(f'E{row}').Value = record['1st_analyst_name']
+                        total_dups_ws.Range(f'F{row}').Value = record['1st_analyst_asb_type']
+                        total_dups_ws.Range(f'G{row}').Value = record['1st_analyst_asb_percent']
+                        total_dups_ws.Range(f'H{row}').Value = record['dup_name']
+                        total_dups_ws.Range(f'I{row}').Value = record['dup_asb_type']
+                        total_dups_ws.Range(f'J{row}').Value = record['dup_asb_percent']
+                        total_dups_ws.Range(f'K{row}').Value = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent']) 
+                        total_dups_ws.Range(f'L{row}').Value = 1
+                        row += 1
+                        count += 1
+
+                reps_last_row = total_reps_ws.Cells(total_reps_ws.Rows.Count, 8).End(xlUp).Row
+                # REPs
+                row = reps_last_row
+                count = int(total_reps_ws.Range(f'A{row}').Value)
+                type_rep_data = [element for element in chosen_type_data if 'rep' in element['type']]
+
+                if type_rep_data:
+                    for record in type_rep_data:
+                        text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
+                        total_reps_ws.Range(f'A{row}').Value = count
+                        total_reps_ws.Range(f'B{row}').Value = text_date_for_excel
+                        total_reps_ws.Range(f'C{row}').Value = record['project']
+                        total_reps_ws.Range(f'M{row}').Value = -1
+                        total_reps_ws.Range(f'N{row}').Value = 1
+                        if '-1000' not in record['lab id']:
+                            new_date = str(datetime.strptime(text_date_for_excel, "%m-%d-%Y").date() + timedelta(days=1))
+                            total_reps_ws.Range(f'D{row}').Value = record['sample']
+                            total_reps_ws.Range(f'E{row}').Value = record['1st_analyst_name']
+                            total_reps_ws.Range(f'F{row}').Value = record['1st_analyst_asb_type']
+                            total_reps_ws.Range(f'G{row}').Value = record['1st_analyst_asb_percent']
+                            total_reps_ws.Range(f'H{row}').Value = new_date[5:7] + '-' + new_date[8:10] + '-' + new_date[0:4]
+                            total_reps_ws.Range(f'I{row}').Value = record['dup_name']
+                            total_reps_ws.Range(f'J{row}').Value = record['dup_asb_type']
+                            total_reps_ws.Range(f'K{row}').Value = record['dup_asb_percent'] 
+                            total_reps_ws.Range(f'L{row}').Value = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
                         else:
-                            selected_analyst_ws[f'K{rep_row}'] = record['1st_analyst_name']
-                            selected_analyst_ws[f'R{rep_row}'] = -1
-                            selected_analyst_ws[f'S{rep_row}'] = 1
+                            total_reps_ws.Range(f'D{row}').Value = 'BL'
+                            total_reps_ws.Range(f'E{row}').Value = record['1st_analyst_name']
+                            total_reps_ws.Range(f'F{row}').Value = 'NAD'
+                            total_reps_ws.Range(f'G{row}').Value = "NAD"
+                            total_reps_ws.Range(f'H{row}').Value = text_date_for_excel #
+                            total_reps_ws.Range(f'I{row}').Value = record['dup_name'] #
+                            total_reps_ws.Range(f'J{row}').Value = 'NAD'
+                            total_reps_ws.Range(f'K{row}').Value = 'NAD'
+                            total_reps_ws.Range(f'L{row}').Value = 0
+                        row += 1
+                        count += 1
+                
+                # Per analyst:
+                unique_analysts = {item["1st_analyst_name"] for item in chosen_type_data}
+                for analyst in unique_analysts:
+                    
+                    if analyst in worksheet_names:
+                        selected_analyst_ws = wb.Worksheets(analyst)
+                    else:
+                        selected_analyst_ws = wb.Worksheets.Add()
+                        selected_analyst_ws.Name = analyst
 
-                            if '-1000' not in record['lab id']:
-                                selected_analyst_ws[f'L{rep_row}'] = record['1st_analyst_asb_type'][:4] 
-                                selected_analyst_ws[f'M{rep_row}'] = record['1st_analyst_asb_percent'] #
-                                selected_analyst_ws[f'N{rep_row}'] = record['dup_name']
-                                selected_analyst_ws[f'O{rep_row}'] = record['dup_asb_type'][:4]
-                                selected_analyst_ws[f'P{rep_row}'] = record['dup_asb_percent']
-                                selected_analyst_ws[f'Q{rep_row}'] = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
+                    # decor_header_analyst_list(selected_analyst_ws)
+                    selected_analyst_data = [element for element in chosen_type_data if element['1st_analyst_name'] == analyst ] 
+                    
+                    if selected_analyst_data:
+                        dup_row = selected_analyst_ws.Cells(selected_analyst_ws.Rows.Count, 1).End(xlUp).Row
+                        rep_row = selected_analyst_ws.Cells(selected_analyst_ws.Rows.Count, 11).End(xlUp).Row
+                        for record in selected_analyst_data:
+                            if 'dup' in record['type']:
+                                selected_analyst_ws.Range(f'A{dup_row}').Value = record['1st_analyst_name']
+                                selected_analyst_ws.Range(f'B{dup_row}').Value = record['1st_analyst_asb_type']
+                                selected_analyst_ws.Range(f'C{dup_row}').Value = record['1st_analyst_asb_percent']
+                                selected_analyst_ws.Range(f'D{dup_row}').Value = record['dup_name']
+                                selected_analyst_ws.Range(f'E{dup_row}').Value = record['dup_asb_type']
+                                selected_analyst_ws.Range(f'F{dup_row}').Value = record['dup_asb_percent']
+                                selected_analyst_ws.Range(f'G{dup_row}').Value = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
+                                selected_analyst_ws.Range(f'H{dup_row}').Value = -1
+                                selected_analyst_ws.Range(f'I{dup_row}').Value = 1
+                                dup_row += 1
                             else:
-                                selected_analyst_ws[f'L{rep_row}'] = 'NAD'
-                                selected_analyst_ws[f'M{rep_row}'] = 'NAD'
-                                selected_analyst_ws[f'N{rep_row}'] = replicate_analyst(record['1st_analyst_name'])
-                                selected_analyst_ws[f'O{rep_row}'] = 'NAD'
-                                selected_analyst_ws[f'P{rep_row}'] = 'NAD'
-                                selected_analyst_ws[f'Q{rep_row}'] = 0
-                            rep_row += 1
+                                selected_analyst_ws.Range(f'K{rep_row}').Value = record['1st_analyst_name']
+                                selected_analyst_ws.Range(f'R{rep_row}').Value = -1
+                                selected_analyst_ws.Range(f'S{rep_row}').Value = 1
 
-            out_path = os.path.join(get_writable_dir(),  f"{type_analysis.upper()}_{text_date_for_name}.xlsx")
-            wb.save(out_path)
-            wb.close()
+                                if '-1000' not in record['lab id']:
+                                    selected_analyst_ws.Range(f'L{rep_row}').Value = record['1st_analyst_asb_type'][:4] 
+                                    selected_analyst_ws.Range(f'M{rep_row}').Value = record['1st_analyst_asb_percent'] #
+                                    selected_analyst_ws.Range(f'N{rep_row}').Value = record['dup_name']
+                                    selected_analyst_ws.Range(f'O{rep_row}').Value = record['dup_asb_type'][:4]
+                                    selected_analyst_ws.Range(f'P{rep_row}').Value = record['dup_asb_percent']
+                                    selected_analyst_ws.Range(f'Q{rep_row}').Value = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent'])
+                                else:
+                                    selected_analyst_ws.Range(f'L{rep_row}').Value = 'NAD'
+                                    selected_analyst_ws.Range(f'M{rep_row}').Value = 'NAD'
+                                    selected_analyst_ws.Range(f'N{rep_row}').Value = replicate_analyst(record['1st_analyst_name'])
+                                    selected_analyst_ws.Range(f'O{rep_row}').Value = 'NAD'
+                                    selected_analyst_ws.Range(f'P{rep_row}').Value = 'NAD'
+                                    selected_analyst_ws.Range(f'Q{rep_row}').Value = 0
+                                rep_row += 1
 
+                # out_path = os.path.join(get_writable_dir(),  f"{type_analysis.upper()}_{text_date_for_name}.xlsx")
+                wb.Save()
+
+            finally:
+                if wb is not None:
+                    try:
+                        wb.Close(SaveChanges=False)
+                    except Exception:
+                        pass
+                excel.Quit()
+                pythoncom.CoUninitialize()
 
 # if __name__ == '__main__':
 #     file = script_dir / 'qc_result.json'
