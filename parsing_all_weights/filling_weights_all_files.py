@@ -88,34 +88,35 @@ class QCProcessorApp:
         self.root = root
         self.root.title("QC Processor")
         self.root.geometry("600x400")
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
         self.file_with_file_list_path = None
         self.file_with_weights = None
         self.folder_path = None
             
         # Кнопка выбора одного файла
-        self.btn_select_file = Button(
+        self.btn_select_file_list_files = Button(
             root,
             text="Choose File with list files",
             command=self.select_json_file_with_file_list,
             width=20,
             height=2
         )
-        self.btn_select_file.pack(pady=10)
+        self.btn_select_file_list_files.pack(pady=10)
 
         # Кнопка выбора одного файла
-        self.btn_select_file = Button(
+        self.btn_select_file_weights = Button(
             root,
             text="Choose File with weights",
             command=self.select_json_file_with_weights,
             width=20,
             height=2
         )
-        self.btn_select_file.pack(pady=10)
+        self.btn_select_file_weights.pack(pady=10)
 
         # Метка с выбранным файлом
         self.lbl_file = Label(root, text="Файл не выбран", wraplength=550)
         self.lbl_file.pack(pady=5)
+
         # Кнопка запуска
         self.btn_run = Button(
             root, 
@@ -178,7 +179,7 @@ class QCProcessorApp:
     def run_processing(self):
         """Запускает обработку в отдельном потоке"""
         self.btn_run.config(state=DISABLED)
-        self.btn_select.config(state=DISABLED)
+        self.btn_select_file_weights.config(state=DISABLED)
         self.progress['value'] = 0
         
         # Очищаем лог
@@ -197,17 +198,19 @@ class QCProcessorApp:
 
         self.update_status("Поиск Excel-файлов...")
 
-        with self.file_with_file_list_path.open("r", encoding="utf-8") as f:
+        all_files_json = Path(self.file_with_file_list_path)
+        with all_files_json.open("r", encoding="utf-8") as f:
             all_files = json.load(f)   
+        print(all_files)
 
-        with self.file_with_weights.open("r", encoding="utf-8") as f:
+        with Path(self.file_with_weights).open("r", encoding="utf-8") as f:
             weights_data = json.load(f)
 
         if not all_files:
             self.update_status("Файлы не найдены")
             messagebox.showerror("Ошибка", "Excel-файлы не найдены в указанной папке")
             self.btn_run.config(state=NORMAL)
-            self.btn_select.config(state=NORMAL)
+            self.btn_select_file_weights.config(state=NORMAL)
             return
 
         total_files = len(all_files)
@@ -226,9 +229,9 @@ class QCProcessorApp:
                 progress_value = (file_index + 1) / total_files * 100
                 self.progress["value"] = progress_value
 
-                self.update_status(f"Обработка: {filepath.name}")
+                self.update_status(f"Обработка: {filepath}")
                 self.log_message("*" * 50)
-                self.log_message(f"[{file_index + 1}/{total_files}] {filepath.name}")
+                self.log_message(f"[{file_index + 1}/{total_files}] {filepath}")
                 
                 wb = None
 
@@ -236,7 +239,7 @@ class QCProcessorApp:
                     wb = open_with_retry(excel, filepath)
 
                     if not sheet_exists(wb, "SampleAnalyses"):
-                        self.log_message(f" {filepath.name} - Лист SampleAnalyses не найден")
+                        self.log_message(f" {filepath} - Лист SampleAnalyses не найден")
                         continue
 
                     sample_analysis_ws = wb.Worksheets("SampleAnalyses")
@@ -245,11 +248,11 @@ class QCProcessorApp:
 
                     if (sample_analysis_ws.Range("A8").Value is None and str(sample_analysis_ws.Range("A8").Value).strip() == ""
                         and sample_analysis_ws.Range("B8").Value is None and str(sample_analysis_ws.Range("B8").Value).strip() == ""):
-                        self.log_message(f"{filepath.name} - No Samples")
+                        self.log_message(f"{filepath} - No Samples")
                         continue
 
                     if str(sample_analysis_ws.Range("A8").Value) == 'None' and str(sample_analysis_ws.Range("B8").Value) == 'None':
-                        self.log_message(f"{filepath.name} - No Samples")
+                        self.log_message(f"{filepath} - No Samples")
                         continue
                     
                     report_row = 6
@@ -279,6 +282,9 @@ class QCProcessorApp:
                             if str(sample_client_id).lower() != 'bl' or str(sample_lab_id).lower() != '1':
                                 if sample_analysis_ws.Range(f"AR{sample_row}").Value is not None and sample_analysis_ws.Range(f"AR{sample_row}").Value != '':
                                     if str(sample_analysis_ws.Range(f"AR{sample_row}").Value) == '198.6':
+                                        print(f'Sample number: {sample_analysis_ws.Cells(sample_row, 1).Value,}')
+                                        print(f'lab_id: {sample_analysis_ws.Cells(sample_row, 2).Value,}')
+                                        print(f'residue: {sample_analysis_ws.Cells(sample_row, 46).Value,}')
                                         duplicates_samples.append({
                                             'sample_number':sample_analysis_ws.Cells(sample_row, 1).Value,
                                             'lab_id':sample_analysis_ws.Cells(sample_row, 2).Value,
@@ -314,6 +320,7 @@ class QCProcessorApp:
                             weight_ws.Range(f'O{weight_row}').Value = '198.6'
                         else:
                             print(f'ERROR {filepath}')
+                        weight_row += 1
 
                     wb.Save()
 
@@ -337,7 +344,7 @@ class QCProcessorApp:
             pythoncom.CoUninitialize()
 
             self.btn_run.config(state=NORMAL)
-            self.btn_select.config(state=NORMAL)
+            self.btn_select_file_weights.config(state=NORMAL)
 
         if not results:
             self.update_status("Готово, но изменений не было")

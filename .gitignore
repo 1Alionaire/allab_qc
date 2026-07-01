@@ -10,3 +10,4 @@ build/
 *.json
 *.spec
 *.pyc
+*.log
