@@ -68,10 +68,11 @@ def get_random_weights(input_weights_data, input_residue):
         interval_residue_end = float_residue + 10
 
         for weights_index in range(len(input_weights_data)):
-            if interval_residue_start < input_weights_data[weights_index]['percent_residue'] < interval_residue_end:
-                return input_weights_data.pop(weights_index) 
-            else:
-                continue
+            if 0 < input_weights_data[weights_index]['percent_residue'] < 100:
+                if interval_residue_start < input_weights_data[weights_index]['percent_residue'] < interval_residue_end:
+                    return input_weights_data.pop(weights_index) 
+                else:
+                    continue
         
         random_index = random.randint(0, len(input_weights_data) - 1)
         return input_weights_data.pop(random_index)
@@ -272,7 +273,7 @@ class QCProcessorApp:
 
                     self.log_message(f" total_amount_samples: {total_amount_samples - 1} ")
 
-                    duplicates_samples = []
+                    duplicates_samples = {}
                     while True:
                         sample_client_id = sample_analysis_ws.Range(f"A{sample_row}").Value
                         sample_lab_id = sample_analysis_ws.Range(f"B{sample_row}").Value
@@ -282,17 +283,17 @@ class QCProcessorApp:
                             if str(sample_client_id).lower() != 'bl' or str(sample_lab_id).lower() != '1':
                                 if sample_analysis_ws.Range(f"AR{sample_row}").Value is not None and sample_analysis_ws.Range(f"AR{sample_row}").Value != '':
                                     if str(sample_analysis_ws.Range(f"AR{sample_row}").Value) == '198.6':
-                                        print(f'Sample number: {sample_analysis_ws.Cells(sample_row, 1).Value,}')
+                                        original_sample_number = str(sample_analysis_ws.Cells(sample_row, 1).Value)[1:-2]
+                                        print(f'Sample number: {original_sample_number}')
                                         print(f'lab_id: {sample_analysis_ws.Cells(sample_row, 2).Value,}')
                                         print(f'residue: {sample_analysis_ws.Cells(sample_row, 46).Value,}')
-                                        duplicates_samples.append({
-                                            'sample_number':sample_analysis_ws.Cells(sample_row, 1).Value,
-                                            'lab_id':sample_analysis_ws.Cells(sample_row, 2).Value,
-                                            'residue': sample_analysis_ws.Cells(sample_row, 46).Value
-                                        })
-                            # self.log_message(f"will delete {sample_analysis_ws.Cells(sample_row, 1).Value}")
-                            # for col in range(1, 50):
-                                # sample_analysis_ws.Cells(sample_row, col).Value = ""
+                                        if original_sample_number in duplicates_samples:
+                                            pass
+                                        else:
+                                            duplicates_samples[original_sample_number] = {
+                                                'lab_id':sample_analysis_ws.Cells(sample_row, 2).Value,
+                                                'residue': sample_analysis_ws.Cells(sample_row, 46).Value
+                                            }
                         else:
                             break
                         sample_row += 1
@@ -300,11 +301,11 @@ class QCProcessorApp:
                     last_weight_row = weight_ws.Cells(weight_ws.Rows.Count, 1).End(xlUp).Row
                     weight_row = last_weight_row + 1
 
-                    for duplicate in duplicates_samples:
-                        weight_item = get_random_weights(weights_data, duplicate['residue'])
+                    for key, value in duplicates_samples.items():
+                        weight_item = get_random_weights(weights_data, value['residue'])
                         if weight_item is not None:
-                            weight_ws.Range(f'A{weight_row}').Value = duplicate['sample_number']
-                            weight_ws.Range(f'B{weight_row}').Value = duplicate['lab_id']
+                            weight_ws.Range(f'A{weight_row}').Value = str(key) + 'r'
+                            weight_ws.Range(f'B{weight_row}').Value = value['lab_id']
                             weight_ws.Range(f'C{weight_row}').Value = '1'
                             weight_ws.Range(f'D{weight_row}').Value = weight_item['cruc_weight']
                             weight_ws.Range(f'E{weight_row}').Value = weight_item['cruc_with_sample_weight']
@@ -323,8 +324,6 @@ class QCProcessorApp:
                         weight_row += 1
 
                     wb.Save()
-
-                    #results.append(str(filepath))
 
                     self.log_message("  ✓ Файл обработан и сохранен")
 
