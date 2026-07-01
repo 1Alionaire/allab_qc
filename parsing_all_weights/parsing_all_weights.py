@@ -7,10 +7,6 @@ import pandas as pd
 from datetime import date
 import json
 from tkcalendar import DateEntry
-from datetime import datetime
-from process_raw_data import generate_duplicates
-from fill_all_excel_files import fill_all_excel_files
-from excel_report_filling import generate_report_excels
 import logging
 import logging, traceback, os, sys
 
@@ -72,12 +68,6 @@ class QCProcessorApp:
         
         self.folder_path = None
 
-        self.select_date = DateEntry(self.root, width=18, background='darkblue',
-                                       foreground='white', borderwidth=2,
-                                       date_pattern='mm.dd.yyyy')
-        self.select_date.pack(pady=5)
-        self.files = {"plm": None, "nob": None, "tem": None}
-
         # Кнопка выбора папки
         self.btn_select = Button(
             root, 
@@ -93,15 +83,7 @@ class QCProcessorApp:
         self.lbl_folder.pack(pady=5)
 
         self.labels = {}
-        for key, caption in [("plm", "PLM File"),
-                             ("nob", "NOB File"),
-                             ("tem", "TEM File")]:
-            Button(root, text=f"Choose {caption}", width=20, height=2,
-                   command=lambda k=key: self.select_file(k)).pack(pady=5)
-            lbl = Label(root, text=f"{caption}: не выбран", wraplength=550)
-            lbl.pack(pady=2)
-            self.labels[key] = lbl
-        
+
         # Кнопка запуска
         self.btn_run = Button(
             root, 
@@ -124,21 +106,6 @@ class QCProcessorApp:
         # Лог
         self.log = Text(root, height=10, width=70, state=DISABLED)
         self.log.pack(pady=10)
-    
-    def select_file(self, key):
-        file = filedialog.askopenfilename(
-            title="Выберите Excel-файл",
-            filetypes=[
-                ("Excel files", "*.xlsx *.xlsm *.xls"),
-                ("Excel 2007+", "*.xlsx"),
-                ("Excel with Macros", "*.xlsm"),
-                ("Excel 97-2003", "*.xls"),
-            ]
-        )
-        if file:
-            self.files[key] = file
-            self.labels[key].config(text=f"Файл: {Path(file).name}")
-            self.btn_run.config(state=NORMAL)
 
     def select_folder(self):
         folder = filedialog.askdirectory(title="Выберите папку с Excel-файлами")
@@ -164,17 +131,7 @@ class QCProcessorApp:
         if not self.folder_path:
             messagebox.showwarning("Warning", "Please choose folder for collect")
             return
-        
-        if not self.select_date:
-            messagebox.showwarning("Warning", "Please select date")
-            return
-        
-        for key, value in self.files.items():
-            if value is None:
-                messagebox.showwarning("Warning", f"PLease Select {key.upper()} file ")
-                return
 
-        print(f'self.files: {self.files}')
         """Запускает обработку в отдельном потоке"""
         self.btn_run.config(state=DISABLED)
         self.btn_select.config(state=DISABLED)
@@ -194,7 +151,6 @@ class QCProcessorApp:
         results = []
         result_json = {}
         counter = 0
-        wrong_files_array = []
         
         # Ищем все Excel-файлы
         self.update_status("Поиск Excel-файлов...")
@@ -237,173 +193,49 @@ class QCProcessorApp:
                 continue
 
             # Проверяем наличие листа PLM_TEM_Report
-            if "PLM_TEM_Report" not in wb.sheetnames:
+            if "NOB_Calculation" not in wb.sheetnames:
                 self.log_message(f" {filepath.name} ⊘ Лист PLM_TEM_Report не найден ")
                 wb.close()
                 continue
             
             # есть ли в репорте данные
-            plm_result_sheet = wb["PLM_TEM_Report"]
-            if plm_result_sheet.max_row < 6:
+            weight_sheet = wb["NOB_Calculation"]
+            if weight_sheet.max_row < 7:
                 self.log_message(f" {filepath.name} ⊘ Лист PLM_TEM_Report пустой")
                 wb.close()
                 continue
 
             counter += 1
-            project_info = plm_result_sheet["M1"].value
-            date_analyzed = plm_result_sheet["M2"].value
-            
-            if str(date_analyzed).strip() == 'None':
-                self.log_message(f" {filepath.name} ⊘ No Date Analyzed")
-                wb.close()
-                continue
 
-            
-            chosen_date = self.select_date.get()
-            chosen_date_parsed = datetime.strptime(chosen_date, "%m.%d.%Y").date()
+            for row in weight_sheet.iter_rows(min_row=7, max_row=weight_sheet.max_row, min_col=1, max_col=20, values_only=True):
+                try:
+                    results.append({
+                        'cruc_weight': round(float(row[3]), 2),
+                        'cruc_with_sample_weight': round(float(row[4]), 2),
+                        'sample_weight': round(float(row[5]), 2),
+                        'cruc_with_sample_ash_weight': round(float(row[6]), 2),
+                        'percent_organic': round(float(row[7]), 2),
+                        'petri_weight': round(float(row[8]), 2),
+                        'petri_with_sample_weight': round(float(row[9]), 2),
+                        'percent_caco3': round(float(row[12]), 2),
+                        'percent_residue': round(float(row[13]), 2),
+                    })  
+                except:
+                    continue
 
-            try:
-                date_analyzed_parsed = date_analyzed.date()
-            except:
-                self.log_message(f" {filepath.name} ⊘ Wrong Format Date")
-                wb.close()
-                wrong_files_array.append(filepath.name)
-                continue
-
-            if chosen_date_parsed != date_analyzed_parsed:
-                self.log_message(f" {filepath.name} ⊘ Not that date")
-                wb.close()
-                continue
-
-            if project_info is None or str(project_info).strip() == '' or str(project_info).strip() == 'None':
-                project_info = find_project_in_sample(str(plm_result_sheet["B6"].value))
-
-            if project_info in result_json:
-                self.log_message(f" {filepath.name} ⊘ Already has record")
-                wb.close()
-                continue
-
-            # 2. Берем информацию из B3 листа SampleAnalyses
-            analyst_info = None
-            if "SampleAnalyses" in wb.sheetnames:
-                sample_sheet = wb["SampleAnalyses"]
-                if str(sample_sheet["B3"].value).strip() != 'None':
-                    analyst_info = str(sample_sheet["B3"].value).strip().upper()
-                else:
-                    analyst_info = "No Analyst"
-            else:
-                self.log_message(f" {filepath.name} ⊘ No sample analysis sheet")
-                wb.close()
-                continue
-
-
-            # 3. Считаем строки
-            plm_count = 0
-            nob_count = 0
-            tem_count = 0
-            total_count = 0
-
-            for row in plm_result_sheet.iter_rows(min_row=6, min_col=2, max_col=2):
-                cell_i = row[0].value
-                if cell_i is not None:
-                    cell_str = str(cell_i).strip()
-                    if (cell_str):
-                        if (cell_str) and (project_info in cell_str):
-                            total_count += 1
-
-            for row in plm_result_sheet.iter_rows(min_row=6, min_col=9, max_col=17):
-                # Колонка I (индекс 0, т.к. min_col=9)
-                cell_i = row[0].value
-                if cell_i is not None:
-                    cell_str = str(cell_i).strip()
-                    if cell_str and cell_str != "Not Applicable":
-                        plm_count += 1
-                
-                # Колонка L (индекс 3, т.к. L=12, 12-9=3)
-                cell_l = row[3].value
-                if cell_l is not None:
-                    cell_str = str(cell_l).strip()
-                    if cell_str and cell_str != "Not Applicable":
-                        nob_count += 1
-                
-                # Колонка Q (индекс 8, т.к. Q=17, 17-9=8)
-                cell_q = row[8].value
-                if cell_q is not None:
-                    cell_str = str(cell_q).strip()
-                    if cell_str and cell_str != "Not Analyzed":
-                        tem_count += 1
-            
-            all_plm_data = []
-            all_nob_data = []
-
-            plm_sample_sheet = wb["SampleAnalyses"]
-                
-            if plm_sample_sheet['A8'].value is not None:
-                for row in plm_sample_sheet.iter_rows(min_row=8, max_row=(7 + total_count), min_col=1, max_col=46, values_only=True):
-                    plm_analysis_json = {}
-                    nob_analysis_json = {}
-                    if row[0] is None:
-                        continue
-                    if str(row[43]).strip() == '198.1' or str(row[43]).strip() == '198,1':
-                        for col in range(46):
-                            plm_analysis_json[plm_analysis_columns[col]] = str(row[col])
-                    else:
-                        for col in range(46):
-                            nob_analysis_json[plm_analysis_columns[col]] = str(row[col])
-
-                    if len(plm_analysis_json) > 0:
-                        all_plm_data.append(plm_analysis_json)
-
-                    if len(nob_analysis_json) > 0:
-                        all_nob_data.append(nob_analysis_json)
-                        
-
-            all_tem_data = []
-            if "TEM_Calculation" in wb.sheetnames:
-                tem_sample_sheet = wb["TEM_Calculation"]
-
-                if tem_sample_sheet['A6'].value is not None:
-                    for row in tem_sample_sheet.iter_rows(min_row=6, max_row=(6 + total_count - 1), min_col=1, max_col=19, values_only=True):
-                        tem_analysis_json = {}
-                        if row[0] is None:
-                            continue
-                        elif row[18] == 'PS':
-                            continue
-                        else:
-                            for col in range(19):
-                                tem_analysis_json[tem_analysis_columns[col]] = str(row[col])
-                        all_tem_data.append(tem_analysis_json)
-
-            result_json[project_info] = {"date": str(date_analyzed), 
-                                         "analyst": analyst_info, 
-                                         "plm_count": plm_count, 
-                                         "nob_count": nob_count, 
-                                         "tem_count": tem_count,
-                                         "total_count": total_count,
-                                          "file_name" : str(filepath), 
-                                          "plm_analysis": all_plm_data,
-                                          'nob_analysis': all_nob_data, 
-                                          "tem_analysis": all_tem_data }
-            
             wb.close()
-            
-        # logging.info('test')
         
-        # output_raw_file = Path(self.folder_path) / "qc_raw_data.json"
-        # with open(output_raw_file, "a", encoding="utf-8") as f:
-        #     f.write(json.dumps(result_json, indent=4, ensure_ascii=False))
+        output_raw_file = Path(self.folder_path) / "weight_data.json"
 
-        generated_duplicates_array = generate_duplicates(result_json)
-        output_total_array_file = Path(self.folder_path) / "qc_result_data.json"
-        with open(output_total_array_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(generated_duplicates_array, indent=4, ensure_ascii=False))
+        with open(output_raw_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(results, indent=4, ensure_ascii=False))
 
-        fill_all_excel_files(generated_duplicates_array)
+        # generated_duplicates_array = generate_duplicates(result_json)
+        # output_total_array_file = Path(self.folder_path) / "qc_result_data.json"
 
-        generate_report_excels(generated_duplicates_array, self.files)
-        
-        with open("wrong data files.txt", "w", encoding="utf-8") as file:
-            file.writelines(f"{item}\n" for item in wrong_files_array)
+        # with open(output_total_array_file, "a", encoding="utf-8") as f:
+        #     f.write(json.dumps(generated_duplicates_array, indent=4, ensure_ascii=False))
+
 
         if not results:
             self.update_status("Готово (нет данных)")
@@ -440,4 +272,4 @@ if __name__ == "__main__":
     app = QCProcessorApp(root)
     root.mainloop()
 
-    # pyinstaller --onefile --hidden-import babel.numbers --hidden-import babel.dates --collect-all babel --name="PLM_QC_Generate_by_day" main.py
+    # pyinstaller --onefile --hidden-import babel.numbers --hidden-import babel.dates --collect-all babel --name="Parsing_all_weights" parsing_all_weights.py

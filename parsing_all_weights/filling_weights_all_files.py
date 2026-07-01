@@ -23,6 +23,7 @@ import pythoncom
 
 import time
 import pythoncom
+xlUp = -4162
 
 def open_with_retry(excel, filepath, attempts=3, delay=2.0):
     """
@@ -55,8 +56,28 @@ def sheet_exists(wb, sheet_name):
             return True
     return False
 
+def get_random_weights(input_weights_data, input_residue):
+    if len(input_weights_data) > 0:
+        try:
+            float_residue = float(input_residue)
+        except:
+            random_index = random.randint(0, len(input_weights_data) - 1)
+            return input_weights_data.pop(random_index)
+        
+        interval_residue_start = float_residue - 10
+        interval_residue_end = float_residue + 10
 
-
+        for weights_index in range(len(input_weights_data)):
+            if interval_residue_start < input_weights_data[weights_index]['percent_residue'] < interval_residue_end:
+                return input_weights_data.pop(weights_index) 
+            else:
+                continue
+        
+        random_index = random.randint(0, len(input_weights_data) - 1)
+        return input_weights_data.pop(random_index)
+    else:
+        return
+    
 def find_duplicates(nums):
     counts = Counter(nums)
     # Возвращаем ключи, количество которых больше 1
@@ -68,23 +89,33 @@ class QCProcessorApp:
         self.root.title("QC Processor")
         self.root.geometry("600x400")
         self.root.resizable(False, False)
-        
+        self.file_with_file_list_path = None
+        self.file_with_weights = None
         self.folder_path = None
-        
-        # Кнопка выбора папки
-        self.btn_select = Button(
-            root, 
-            text="Choose Folder", 
-            command=self.select_folder,
+            
+        # Кнопка выбора одного файла
+        self.btn_select_file = Button(
+            root,
+            text="Choose File with list files",
+            command=self.select_json_file_with_file_list,
             width=20,
             height=2
         )
-        self.btn_select.pack(pady=10)
-        
-        # Метка с выбранной папкой
-        self.lbl_folder = Label(root, text="Папка не выбрана", wraplength=550)
-        self.lbl_folder.pack(pady=5)
-        
+        self.btn_select_file.pack(pady=10)
+
+        # Кнопка выбора одного файла
+        self.btn_select_file = Button(
+            root,
+            text="Choose File with weights",
+            command=self.select_json_file_with_weights,
+            width=20,
+            height=2
+        )
+        self.btn_select_file.pack(pady=10)
+
+        # Метка с выбранным файлом
+        self.lbl_file = Label(root, text="Файл не выбран", wraplength=550)
+        self.lbl_file.pack(pady=5)
         # Кнопка запуска
         self.btn_run = Button(
             root, 
@@ -108,11 +139,28 @@ class QCProcessorApp:
         self.log = Text(root, height=10, width=70, state=DISABLED)
         self.log.pack(pady=10)
     
-    def select_folder(self):
-        folder = filedialog.askdirectory(title="Выберите папку с Excel-файлами")
-        if folder:
-            self.folder_path = folder
-            self.lbl_folder.config(text=f"Папка: {folder}")
+    def select_json_file_with_file_list(self):
+        file = filedialog.askopenfilename(
+            title="Выберите Excel-файл",
+            filetypes=[
+                    ("JSON", ".json")
+            ]
+        )
+        if file:
+            self.file_with_file_list_path = file
+            self.lbl_file.config(text=f"Файл: {file}")
+            self.btn_run.config(state=NORMAL)
+
+    def select_json_file_with_weights(self):
+        file = filedialog.askopenfilename(
+            title="Выберите Excel-файл",
+            filetypes=[
+                    ("JSON", ".json")
+            ]
+        )
+        if file:
+            self.file_with_weights = file
+            self.lbl_file.config(text=f"Файл: {file}")
             self.btn_run.config(state=NORMAL)
     
     def log_message(self, message):
@@ -144,14 +192,16 @@ class QCProcessorApp:
     
     def process_files(self):
         """Основная логика обработки файлов"""
-
+        weights_data = None
         results = []
 
         self.update_status("Поиск Excel-файлов...")
 
-        all_files = []
-        for ext in ("*.xlsx", "*.xlsm", "*.xls"):
-            all_files.extend(Path(self.folder_path).rglob(ext))
+        with self.file_with_file_list_path.open("r", encoding="utf-8") as f:
+            all_files = json.load(f)   
+
+        with self.file_with_weights.open("r", encoding="utf-8") as f:
+            weights_data = json.load(f)
 
         if not all_files:
             self.update_status("Файлы не найдены")
@@ -191,6 +241,7 @@ class QCProcessorApp:
 
                     sample_analysis_ws = wb.Worksheets("SampleAnalyses")
                     report_ws = wb.Worksheets("PLM_TEM_Report")
+                    weight_ws = wb.Worksheets("NOB_Calculation")
 
                     if (sample_analysis_ws.Range("A8").Value is None and str(sample_analysis_ws.Range("A8").Value).strip() == ""
                         and sample_analysis_ws.Range("B8").Value is None and str(sample_analysis_ws.Range("B8").Value).strip() == ""):
@@ -200,7 +251,6 @@ class QCProcessorApp:
                     if str(sample_analysis_ws.Range("A8").Value) == 'None' and str(sample_analysis_ws.Range("B8").Value) == 'None':
                         self.log_message(f"{filepath.name} - No Samples")
                         continue
-                    
                     
                     report_row = 6
                     total_amount_samples = 0
@@ -219,25 +269,55 @@ class QCProcessorApp:
 
                     self.log_message(f" total_amount_samples: {total_amount_samples - 1} ")
 
+                    duplicates_samples = []
                     while True:
                         sample_client_id = sample_analysis_ws.Range(f"A{sample_row}").Value
                         sample_lab_id = sample_analysis_ws.Range(f"B{sample_row}").Value
 
                         if (sample_client_id is not None and str(sample_client_id).strip() != ""
-                            and sample_lab_id is not None and str(sample_lab_id).strip() != ""):
-                            self.log_message(f"will delete {sample_analysis_ws.Cells(sample_row, 1).Value}")
-                            for col in range(1, 50):
-                                sample_analysis_ws.Cells(sample_row, col).Value = ""
-                        elif (str(sample_client_id).strip() != 'None' and str(sample_lab_id).strip() != "None"):
-                            for col in range(1, 50):
-                                sample_analysis_ws.Cells(sample_row, col).Value = ""
+                            and sample_lab_id is not None and str(sample_lab_id).strip() != "") and (str(sample_client_id).strip() != 'None' and str(sample_lab_id).strip() != "None"):
+                            if str(sample_client_id).lower() != 'bl' or str(sample_lab_id).lower() != '1':
+                                if sample_analysis_ws.Range(f"AR{sample_row}").Value is not None and sample_analysis_ws.Range(f"AR{sample_row}").Value != '':
+                                    if str(sample_analysis_ws.Range(f"AR{sample_row}").Value) == '198.6':
+                                        duplicates_samples.append({
+                                            'sample_number':sample_analysis_ws.Cells(sample_row, 1).Value,
+                                            'lab_id':sample_analysis_ws.Cells(sample_row, 2).Value,
+                                            'residue': sample_analysis_ws.Cells(sample_row, 46).Value
+                                        })
+                            # self.log_message(f"will delete {sample_analysis_ws.Cells(sample_row, 1).Value}")
+                            # for col in range(1, 50):
+                                # sample_analysis_ws.Cells(sample_row, col).Value = ""
                         else:
                             break
                         sample_row += 1
 
+                    last_weight_row = weight_ws.Cells(weight_ws.Rows.Count, 1).End(xlUp).Row
+                    weight_row = last_weight_row + 1
+
+                    for duplicate in duplicates_samples:
+                        weight_item = get_random_weights(weights_data, duplicate['residue'])
+                        if weight_item is not None:
+                            weight_ws.Range(f'A{weight_row}').Value = duplicate['sample_number']
+                            weight_ws.Range(f'B{weight_row}').Value = duplicate['lab_id']
+                            weight_ws.Range(f'C{weight_row}').Value = '1'
+                            weight_ws.Range(f'D{weight_row}').Value = weight_item['cruc_weight']
+                            weight_ws.Range(f'E{weight_row}').Value = weight_item['cruc_with_sample_weight']
+                            weight_ws.Range(f'F{weight_row}').Value = weight_item['sample_weight']
+                            weight_ws.Range(f'G{weight_row}').Value = weight_item['cruc_with_sample_ash_weight']
+                            weight_ws.Range(f'H{weight_row}').Value = weight_item['percent_organic']
+                            weight_ws.Range(f'I{weight_row}').Value = weight_item['petri_weight']
+                            weight_ws.Range(f'J{weight_row}').Value = weight_item['petri_with_sample_weight']
+                            weight_ws.Range(f'K{weight_row}').Value = weight_item['petri_with_sample_weight']
+                            weight_ws.Range(f'L{weight_row}').Value = 0
+                            weight_ws.Range(f'M{weight_row}').Value = weight_item['percent_caco3']
+                            weight_ws.Range(f'N{weight_row}').Value = weight_item['percent_residue']
+                            weight_ws.Range(f'O{weight_row}').Value = '198.6'
+                        else:
+                            print(f'ERROR {filepath}')
+
                     wb.Save()
 
-                    results.append(str(filepath))
+                    #results.append(str(filepath))
 
                     self.log_message("  ✓ Файл обработан и сохранен")
 
@@ -278,6 +358,4 @@ if __name__ == "__main__":
     app = QCProcessorApp(root)
     root.mainloop()
 
-    # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples" clean_duplicates_in_excel.py
-    # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples_2nd_way" clean_duplicates_in_excel_second_way.py
-    # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples_2nd_way_v.01" clean_duplicates_in_excel_second_way.py
+    # pyinstaller --onefile --hidden-import babel.numbers --hidden-import babel.dates --collect-all babel --name="Filling all files with samples" filling_weights_all_files.py

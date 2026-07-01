@@ -88,17 +88,14 @@ def generate_report_excels(input_data, files):
 
                 dups_last_row = total_dups_ws.Cells(total_dups_ws.Rows.Count, 8).End(xlUp).Row
                 
-
                 text_date_for_name = chosen_type_data[0]['date'][5:7] + '-' + chosen_type_data[0]['date'][8:10] + '-' + chosen_type_data[0]['date'][0:4]
                 # DUPs
                 row = dups_last_row + 1
-                count = int(total_dups_ws.Range(f'A{row}').Value)
                 type_dup_data = [element for element in chosen_type_data if 'dup' in element['type']]
 
                 if type_dup_data:
                     for record in type_dup_data:
                         text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
-                        total_dups_ws.Range(f'A{row}').Value = count
                         total_dups_ws.Range(f'B{row}').Value = text_date_for_excel
                         total_dups_ws.Range(f'C{row}').Value = record['project']
                         total_dups_ws.Range(f'D{row}').Value = record['sample']
@@ -111,18 +108,15 @@ def generate_report_excels(input_data, files):
                         total_dups_ws.Range(f'K{row}').Value = calc_std_dev(record['1st_analyst_asb_percent'], record['dup_asb_percent']) 
                         total_dups_ws.Range(f'L{row}').Value = 1
                         row += 1
-                        count += 1
 
                 reps_last_row = total_reps_ws.Cells(total_reps_ws.Rows.Count, 8).End(xlUp).Row
                 # REPs
                 row = reps_last_row + 1
-                count = int(total_reps_ws.Range(f'A{row}').Value)
                 type_rep_data = [element for element in chosen_type_data if 'rep' in element['type']]
 
                 if type_rep_data:
                     for record in type_rep_data:
                         text_date_for_excel = record['date'][5:7] + '-' + record['date'][8:10] + '-' + record['date'][0:4]
-                        total_reps_ws.Range(f'A{row}').Value = count
                         total_reps_ws.Range(f'B{row}').Value = text_date_for_excel
                         total_reps_ws.Range(f'C{row}').Value = record['project']
                         total_reps_ws.Range(f'M{row}').Value = -1
@@ -149,7 +143,6 @@ def generate_report_excels(input_data, files):
                             total_reps_ws.Range(f'K{row}').Value = 'NAD'
                             total_reps_ws.Range(f'L{row}').Value = 0
                         row += 1
-                        count += 1
                 
                 # Per analyst:
                 unique_analysts = {item["1st_analyst_name"] for item in chosen_type_data}

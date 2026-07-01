@@ -8,9 +8,6 @@ from datetime import date
 import json
 from tkcalendar import DateEntry
 from datetime import datetime
-# from process_raw_data import generate_duplicates
-# from fill_all_excel_files import fill_all_excel_files
-# from excel_report_filling import generate_report_excels
 import logging
 import pythoncom
 import win32com.client as win32
@@ -90,6 +87,7 @@ class QCProcessorApp:
         self.root.resizable(True, True)
         
         self.folder_path = None
+        self.result_file_path = None
 
         self.select_date = DateEntry(self.root, width=18, background='darkblue',
                                        foreground='white', borderwidth=2,
@@ -110,6 +108,20 @@ class QCProcessorApp:
         self.lbl_folder = Label(root, text="Папка не выбрана", wraplength=550)
         self.lbl_folder.pack(pady=5)
         
+        # Кнопка выбора одного файла
+        self.btn_select_file = Button(
+            root,
+            text="Choose PCM File",
+            command=self.select_file,
+            width=20,
+            height=2
+        )
+        self.btn_select_file.pack(pady=10)
+
+        # Метка с выбранным файлом
+        self.lbl_file = Label(root, text="Файл не выбран", wraplength=550)
+        self.lbl_file.pack(pady=5)
+
         # Кнопка запуска
         self.btn_run = Button(
             root, 
@@ -138,6 +150,21 @@ class QCProcessorApp:
         if folder:
             self.folder_path = folder
             self.lbl_folder.config(text=f"Папка: {folder}")
+            self.btn_run.config(state=NORMAL)
+
+    def select_file(self):
+        file = filedialog.askopenfilename(
+            title="Выберите Excel-файл",
+            filetypes=[
+                ("Excel files", "*.xlsx *.xlsm *.xls"),
+                ("Excel 2007+", "*.xlsx"),
+                ("Excel with Macros", "*.xlsm"),
+                ("Excel 97-2003", "*.xls"),
+            ]
+        )
+        if file:
+            self.result_file_path = file
+            self.lbl_file.config(text=f"Файл: {file}")
             self.btn_run.config(state=NORMAL)
     
     def log_message(self, message):
@@ -342,7 +369,7 @@ class QCProcessorApp:
             self.btn_run.config(state=NORMAL)
             self.btn_select.config(state=NORMAL)
         
-        generate_report_excels(pcm_sample_dict)
+        generate_report_excels(input_data=pcm_sample_dict, input_file=self.result_file_path)
         
         if not results:
             self.update_status("Готово (нет данных)")
@@ -379,4 +406,4 @@ if __name__ == "__main__":
     app = QCProcessorApp(root)
     root.mainloop()
 
-    # pyinstaller --onefile  --hidden-import=win32timezone  --hidden-import=win32com  --hidden-import=win32com.client   --hidden-import=pythoncom  --hidden-import=pywintypes --hidden-import babel.numbers --hidden-import babel.dates --collect-all babel --name="QC_PCM_Collector_by_day"   pcm_parse_excel_for_json_by_day.py
+    # pyinstaller --onefile  --hidden-import=win32timezone  --hidden-import=win32com  --hidden-import=win32com.client   --hidden-import=pythoncom  --hidden-import=pywintypes --hidden-import babel.numbers --hidden-import babel.dates --collect-all babel --name="QC_PCM_Collector_by_day"   main.py
