@@ -8,6 +8,9 @@ import shutil
 import tempfile
 import time
 import sys
+import json 
+import random
+xlUp = -4162
 
 logging.basicConfig(
     filename='app.log',
@@ -102,6 +105,44 @@ tem_columns_dict = {
     19: 'NA or PS'
 }
 
+def get_random_weights(input_weights_data, input_residue):
+    if len(input_weights_data) > 0:
+        try:
+            float_residue = float(input_residue)
+        except:
+            random_index = random.randint(0, len(input_weights_data) - 1)
+            return input_weights_data.pop(random_index)
+        
+        interval_residue_start = float_residue - 10
+        interval_residue_end = float_residue + 10
+
+        while True:
+            random_index = random.randint(0, len(input_weights_data) - 1)
+            if 0 < input_weights_data[random_index]['percent_residue'] < 100:
+                if interval_residue_start < input_weights_data[random_index]['percent_residue'] < interval_residue_end:
+                    return input_weights_data.pop(random_index) 
+            if len(input_weights_data) == 0:
+                break
+    else:
+        return
+
+def get_resource_path(filename):
+    """
+    Returns the path to a file bundled inside the executable.
+
+    When running as a normal .py file:
+        returns the directory containing the script.
+
+    When running as a PyInstaller .exe:
+        returns PyInstaller's temporary resource directory.
+    """
+    if getattr(sys, "frozen", False):
+        base_dir = Path(sys._MEIPASS)
+    else:
+        base_dir = Path(__file__).resolve().parent
+
+    return base_dir / filename
+
 def copy_with_retry(src, dst, attempts=5, delay=2):
     """Копирование с повторами — на случай если файл на Synology занят."""
     for i in range(attempts):
@@ -119,6 +160,10 @@ def copy_with_retry(src, dst, attempts=5, delay=2):
 
 def fill_all_excel_files(inp_data):
     samples_by_file = defaultdict(list)
+
+    weight_config_path = get_resource_path("correct_weight.json")
+    with weight_config_path.open("r", encoding="utf-8") as file:
+        weight_data = json.load(file)
 
     for sample in inp_data:
         fname = sample.get("file_name", "")
@@ -163,11 +208,13 @@ def fill_all_excel_files(inp_data):
             wb = None
             plm_analysis_ws = None
             tem_analysis_ws = None
+            weight_ws = None
 
             # Временная локальная папка — Excel не касается сети
             local_dir = Path(tempfile.mkdtemp())
             local_path = local_dir / file_path.name
 
+            weights_samples = []
             try:
                 logging.info(
                     "Opening: %s | samples: %s",
@@ -278,6 +325,38 @@ def fill_all_excel_files(inp_data):
                                     point_col
                                 ).Value = 50
 
+                        if "nob" in type_analysis:
+                            if duplicate:
+                                original_sample_number = str(sample.get("sample", "")).lower()
+                                # we add original sample number in case replicate and duplicate has a same original sample number. if duplicate and replicate have same sample number - only one weight
+                                if original_sample_number in weights_samples:
+                                    pass
+                                else:
+                                    weight_ws = wb.Worksheets("NOB_Calculation")
+                                    weight_item = get_random_weights(weight_data, duplicate.get('Total Residue'))
+                                    last_weight_row = weight_ws.Cells(weight_ws.Rows.Count, 1).End(xlUp).Row + 1
+                                    
+                                    if weight_item is not None:
+
+                                        weights_samples.append(original_sample_number)
+
+                                        weight_ws.Range(f'A{last_weight_row}').Value = original_sample_number + 'r'
+                                        weight_ws.Range(f'B{last_weight_row}').Value = str(sample.get("lab id", ""))
+                                        weight_ws.Range(f'C{last_weight_row}').Value = '1'
+                                        weight_ws.Range(f'D{last_weight_row}').Value = weight_item['cruc_weight']
+                                        weight_ws.Range(f'E{last_weight_row}').Value = weight_item['cruc_with_sample_weight']
+                                        weight_ws.Range(f'F{last_weight_row}').Value = weight_item['sample_weight']
+                                        weight_ws.Range(f'G{last_weight_row}').Value = weight_item['cruc_with_sample_ash_weight']
+                                        weight_ws.Range(f'H{last_weight_row}').Value = weight_item['percent_organic']
+                                        weight_ws.Range(f'I{last_weight_row}').Value = weight_item['petri_weight']
+                                        weight_ws.Range(f'J{last_weight_row}').Value = weight_item['petri_with_sample_weight']
+                                        weight_ws.Range(f'K{last_weight_row}').Value = weight_item['petri_with_sample_weight']
+                                        weight_ws.Range(f'L{last_weight_row}').Value = 0
+                                        weight_ws.Range(f'M{last_weight_row}').Value = weight_item['percent_caco3']
+                                        weight_ws.Range(f'N{last_weight_row}').Value = weight_item['percent_residue']
+                                        weight_ws.Range(f'O{last_weight_row}').Value = '198.6'
+
+                                        plm_analysis_ws.Range(f'AT{row_number}').Value = weight_item['percent_residue']
                     else:
                         tem_analysis_ws = wb.Worksheets(
                             "TEM_Calculation"
@@ -327,6 +406,8 @@ def fill_all_excel_files(inp_data):
                             ).Value = "E8"
 
                     processed += 1
+
+                
 
                 logging.info("Saving locally: %s", local_path)
                 wb.Save()

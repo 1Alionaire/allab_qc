@@ -241,23 +241,28 @@ class QCProcessorApp:
                 self.log_message(f" {filepath.name} ⊘ Лист PLM_TEM_Report не найден ")
                 wb.close()
                 continue
-            
+        
+            if "SampleAnalyses" not in wb.sheetnames:
+                self.log_message(f" {filepath.name} ⊘ No sample analysis sheet")
+                wb.close()
+                continue
+
             # есть ли в репорте данные
             plm_result_sheet = wb["PLM_TEM_Report"]
             if plm_result_sheet.max_row < 6:
                 self.log_message(f" {filepath.name} ⊘ Лист PLM_TEM_Report пустой")
                 wb.close()
                 continue
-
+            
+            sample_sheet = wb["SampleAnalyses"]
             counter += 1
             project_info = plm_result_sheet["M1"].value
-            date_analyzed = plm_result_sheet["M2"].value
+            date_analyzed = sample_sheet["F3"].value
             
-            if str(date_analyzed).strip() == 'None':
+            if str(date_analyzed).strip() == 'None' or str(date_analyzed).strip() == '':
                 self.log_message(f" {filepath.name} ⊘ No Date Analyzed")
                 wb.close()
                 continue
-
             
             chosen_date = self.select_date.get()
             chosen_date_parsed = datetime.strptime(chosen_date, "%m.%d.%Y").date()
@@ -285,17 +290,12 @@ class QCProcessorApp:
 
             # 2. Берем информацию из B3 листа SampleAnalyses
             analyst_info = None
-            if "SampleAnalyses" in wb.sheetnames:
-                sample_sheet = wb["SampleAnalyses"]
-                if str(sample_sheet["B3"].value).strip() != 'None':
-                    analyst_info = str(sample_sheet["B3"].value).strip().upper()
-                else:
-                    analyst_info = "No Analyst"
+            
+            
+            if str(sample_sheet["B3"].value).strip() != 'None':
+                analyst_info = str(sample_sheet["B3"].value).strip().upper()
             else:
-                self.log_message(f" {filepath.name} ⊘ No sample analysis sheet")
-                wb.close()
-                continue
-
+                analyst_info = "No Analyst"
 
             # 3. Считаем строки
             plm_count = 0
@@ -386,12 +386,6 @@ class QCProcessorApp:
                                           "tem_analysis": all_tem_data }
             
             wb.close()
-            
-        # logging.info('test')
-        
-        # output_raw_file = Path(self.folder_path) / "qc_raw_data.json"
-        # with open(output_raw_file, "a", encoding="utf-8") as f:
-        #     f.write(json.dumps(result_json, indent=4, ensure_ascii=False))
 
         generated_duplicates_array = generate_duplicates(result_json)
         output_total_array_file = Path(self.folder_path) / "qc_result_data.json"
