@@ -1,6 +1,9 @@
 import sys
 import json
 from collections import Counter
+from pathlib import Path
+
+script_dir = Path(__file__).resolve().parent
 
 def lab_id_sort_key(lab_id):
     # lab_id = str(item.get("lab id", ""))
@@ -72,3 +75,20 @@ def lab_id_sort_key(lab_id):
 # output_json_path = "tem_sorted.json"
 # with open(output_json_path, "a", encoding="utf-8") as f:
 #     f.write(json.dumps(sorted_data, indent=4, ensure_ascii=False))
+
+# =============================================== Deleting garbage data
+# input_data = None
+# input_json_path = script_dir / "tem_total_data_sorted_date.json"
+# with open(input_json_path, "r", encoding="utf-8") as f:
+#     input_data = json.load(f)
+
+# final_data = []
+
+# for element in input_data:
+#     final_data.append({"project": element['project'],
+#                         "file_name": element['file_name'],
+#                         "sample": element['sample']})
+
+# output_json_path = script_dir / "tem_clean_sorted_data.json"
+# with open(output_json_path, "a", encoding="utf-8") as f:
+#     f.write(json.dumps(final_data, indent=4, ensure_ascii=False))
