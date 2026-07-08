@@ -91,7 +91,7 @@ class QCProcessorApp:
         self.root.geometry("600x400")
         self.root.resizable(True, True)
         self.file_with_file_list_path = None
-        self.file_with_weights = None
+        # self.file_with_weights = None
         self.folder_path = None
             
         # Кнопка выбора одного файла
@@ -105,14 +105,14 @@ class QCProcessorApp:
         self.btn_select_file_list_files.pack(pady=10)
 
         # Кнопка выбора одного файла
-        self.btn_select_file_weights = Button(
-            root,
-            text="Choose File with weights",
-            command=self.select_json_file_with_weights,
-            width=20,
-            height=2
-        )
-        self.btn_select_file_weights.pack(pady=10)
+        # self.btn_select_file_weights = Button(
+        #     root,
+        #     text="Choose File with weights",
+        #     command=self.select_json_file_with_weights,
+        #     width=20,
+        #     height=2
+        # )
+        # self.btn_select_file_weights.pack(pady=10)
 
         # Метка с выбранным файлом
         self.lbl_file = Label(root, text="Файл не выбран", wraplength=550)
@@ -153,17 +153,17 @@ class QCProcessorApp:
             self.lbl_file.config(text=f"Файл: {file}")
             self.btn_run.config(state=NORMAL)
 
-    def select_json_file_with_weights(self):
-        file = filedialog.askopenfilename(
-            title="Выберите TEM BLANKS Excel-файл",
-            filetypes=[
-                    ("JSON", ".json")
-            ]
-        )
-        if file:
-            self.file_with_weights = file
-            self.lbl_file.config(text=f"Файл: {file}")
-            self.btn_run.config(state=NORMAL)
+    # def select_json_file_with_weights(self):
+    #     file = filedialog.askopenfilename(
+    #         title="Выберите TEM BLANKS Excel-файл",
+    #         filetypes=[
+    #                 ("JSON", ".json")
+    #         ]
+    #     )
+    #     if file:
+    #         self.file_with_weights = file
+    #         self.lbl_file.config(text=f"Файл: {file}")
+    #         self.btn_run.config(state=NORMAL)
     
     def log_message(self, message):
         """Добавляет сообщение в лог"""
@@ -180,7 +180,7 @@ class QCProcessorApp:
     def run_processing(self):
         """Запускает обработку в отдельном потоке"""
         self.btn_run.config(state=DISABLED)
-        self.btn_select_file_weights.config(state=DISABLED)
+        # self.btn_select_file_weights.config(state=DISABLED)
         self.progress['value'] = 0
         
         # Очищаем лог
@@ -204,15 +204,14 @@ class QCProcessorApp:
         with all_files_json.open("r", encoding="utf-8") as f:
             all_files = json.load(f)
 
-
-        with Path(self.file_with_weights).open("r", encoding="utf-8") as f:
-            blanks_tem_data = json.load(f)
+        # with Path(self.file_with_weights).open("r", encoding="utf-8") as f:
+        #     blanks_tem_data = json.load(f)
 
         if not all_files:
             self.update_status("Файлы не найдены")
             messagebox.showerror("Ошибка", "Excel-файлы не найдены в указанной папке")
             self.btn_run.config(state=NORMAL)
-            self.btn_select_file_weights.config(state=NORMAL)
+            # self.btn_select_file_weights.config(state=NORMAL)
             return
 
         total_files = len(all_files)
@@ -246,61 +245,19 @@ class QCProcessorApp:
 
                     
                     tem_ws = wb.Worksheets("TEM_Calculation")
-                    weight_ws = wb.Worksheets("NOB_Calculation")
-                    residue = None
-                    last_weight_row = weight_ws.Cells(weight_ws.Rows.Count, 1).End(xlUp).Row
-                    for i in range(last_weight_row, 6, -1):
-                        if str(weight_ws.Range(f'A{i}').Value).lower() == 'bl':
-                            residue = weight_ws.Range(f'N{i}').Value
-                            break
-
-                    if residue is None:
-                        residue = 6.78
-
                     last_tem_row = tem_ws.Cells(tem_ws.Rows.Count, 1).End(xlUp).Row
-
-                    select_data = blanks_tem_data[element['project']]
-                    find = False
-                    if select_data:
-                        print(select_data)
-                        for i in range(last_tem_row, 5, -1 ):
-                            if str(tem_ws.Range(f'A{i}').Value).lower() != 'none':
-                                if str(tem_ws.Range(f'A{i}').Value).lower() == 'bl':
-                                    find = True
-                                    if select_data['grid_box'] != 'none':
-                                        tem_ws.Range(f'O{i}').Value = select_data['grid_box']
-                                    if select_data['grid_id_1'] != 'none':
-                                        tem_ws.Range(f'P{i}').Value = str(select_data['grid_id_1']).upper()
-                                    if select_data['grid_id_2'] != 'none':
-                                        tem_ws.Range(f'Q{i}').Value = str(select_data['grid_id_2']).upper()
-                                    tem_ws.Range(f'B{i}').Value = '1'
-                                    tem_ws.Range(f'E{i}').Value = residue
-                                    tem_ws.Range(f'F{i}').Value = 'NAD'
-                                    tem_ws.Range(f'G{i}').Value = 'NAD'
-                                    tem_ws.Range(f'I{i}').Value = 'NAD'
-                                    tem_ws.Range(f'J{i}').Value = 'NAD'
-                                    tem_ws.Range(f'L{i}').Value = 'Y'
-                                    tem_ws.Range(f'M{i}').Value = 'Y'
-                                    tem_ws.Range(f'N{i}').Value = 'Y'
-
-                        if find == False:
-                            tem_ws.Range(f'A{last_tem_row}').Value = 'bl'
-                            if select_data['grid_box'] != 'none':
-                                tem_ws.Range(f'O{last_tem_row}').Value = select_data['grid_box']
-                            if select_data['grid_id_1'] != 'none':
-                                tem_ws.Range(f'P{last_tem_row}').Value = str(select_data['grid_id_1']).upper()
-                            if select_data['grid_id_2'] != 'none':
-                                tem_ws.Range(f'Q{last_tem_row}').Value = str(select_data['grid_id_2']).upper()
-
-                            tem_ws.Range(f'B{last_tem_row}').Value = '1'
-                            tem_ws.Range(f'E{last_tem_row}').Value = residue
-                            tem_ws.Range(f'F{last_tem_row}').Value = 'NAD'
-                            tem_ws.Range(f'G{last_tem_row}').Value = 'NAD'
-                            tem_ws.Range(f'I{last_tem_row}').Value = 'NAD'
-                            tem_ws.Range(f'J{last_tem_row}').Value = 'NAD'
-                            tem_ws.Range(f'L{last_tem_row}').Value = 'Y'
-                            tem_ws.Range(f'M{last_tem_row}').Value = 'Y'
-                            tem_ws.Range(f'N{last_tem_row}').Value = 'Y'
+                    print(last_tem_row)
+                    for i in range(last_tem_row, 5, -1 ):
+                        raw_sample_number = str(tem_ws.Range(f'A{i}').Value)
+                        if raw_sample_number != 'None' and raw_sample_number != 'none' and raw_sample_number != '':
+                            if raw_sample_number[0] in ['R', 'D'] and raw_sample_number[-2:] in ['KK', 'AB', 'VC', 'OV']:
+                                pure_sample_number = raw_sample_number[1:-2]
+                                print(pure_sample_number)
+                                if pure_sample_number == element['sample']:
+                                    print('test')
+                                    tem_ws.Range(f'O{i}').Value = element['Box Number']
+                                    tem_ws.Range(f'P{i}').Value = str(element['Grid_1']).upper()
+                                    tem_ws.Range(f'Q{i}').Value = str(element['Grid_2']).upper()
 
                     wb.Save()
 
@@ -313,7 +270,7 @@ class QCProcessorApp:
                 finally:
                     if wb is not None:
                         wb.Close(SaveChanges=False)
-                        time.sleep(0.3) 
+                        time.sleep(0.5) 
 
         finally:
             if excel is not None:
@@ -322,7 +279,7 @@ class QCProcessorApp:
             pythoncom.CoUninitialize()
 
             self.btn_run.config(state=NORMAL)
-            self.btn_select_file_weights.config(state=NORMAL)
+            # self.btn_select_file_weights.config(state=NORMAL)
 
         if not results:
             self.update_status("Готово, но изменений не было")
