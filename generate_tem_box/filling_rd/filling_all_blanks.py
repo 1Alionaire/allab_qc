@@ -1,14 +1,14 @@
 import json
 import math
 import random
-import copy
+import traceback
 import os
 import logging
 import sys
 from openpyxl import load_workbook
 import win32com.client as win32
 from pathlib import Path
-
+from collections import defaultdict
 import threading
 from pathlib import Path
 from tkinter import Tk, Button, Label, Text, filedialog, messagebox, END, DISABLED, NORMAL
@@ -24,6 +24,16 @@ import pythoncom
 import time
 import pythoncom
 xlUp = -4162
+
+def check_cell_value(input_value):
+    if input_value is None:
+        return False
+    else:
+        str_value = str(input_value).strip()
+        if str_value == 'None' or str_value == '' or str_value == 'none':
+            return False
+        else:
+            return True
 
 def open_with_retry(excel, filepath, attempts=3, delay=2.0):
     """
@@ -91,7 +101,6 @@ class QCProcessorApp:
         self.root.geometry("600x400")
         self.root.resizable(True, True)
         self.file_with_file_list_path = None
-        # self.file_with_weights = None
         self.folder_path = None
             
         # Кнопка выбора одного файла
@@ -103,16 +112,6 @@ class QCProcessorApp:
             height=2
         )
         self.btn_select_file_list_files.pack(pady=10)
-
-        # Кнопка выбора одного файла
-        # self.btn_select_file_weights = Button(
-        #     root,
-        #     text="Choose File with weights",
-        #     command=self.select_json_file_with_weights,
-        #     width=20,
-        #     height=2
-        # )
-        # self.btn_select_file_weights.pack(pady=10)
 
         # Метка с выбранным файлом
         self.lbl_file = Label(root, text="Файл не выбран", wraplength=550)
@@ -152,18 +151,6 @@ class QCProcessorApp:
             self.file_with_file_list_path = file
             self.lbl_file.config(text=f"Файл: {file}")
             self.btn_run.config(state=NORMAL)
-
-    # def select_json_file_with_weights(self):
-    #     file = filedialog.askopenfilename(
-    #         title="Выберите TEM BLANKS Excel-файл",
-    #         filetypes=[
-    #                 ("JSON", ".json")
-    #         ]
-    #     )
-    #     if file:
-    #         self.file_with_weights = file
-    #         self.lbl_file.config(text=f"Файл: {file}")
-    #         self.btn_run.config(state=NORMAL)
     
     def log_message(self, message):
         """Добавляет сообщение в лог"""
@@ -196,7 +183,8 @@ class QCProcessorApp:
         """Основная логика обработки файлов"""
         weights_data = None
         results = []
-
+        samples_by_file = defaultdict(list)
+        wrong_files = []
         self.update_status("Поиск Excel-файлов...")
 
         all_files_json = Path(self.file_with_file_list_path)
@@ -204,8 +192,28 @@ class QCProcessorApp:
         with all_files_json.open("r", encoding="utf-8") as f:
             all_files = json.load(f)
 
-        # with Path(self.file_with_weights).open("r", encoding="utf-8") as f:
-        #     blanks_tem_data = json.load(f)
+        for sample in all_files:
+            fname = sample.get("file_name", "")
+
+            if not fname:
+                logging.warning("Sample без file_name: %s", sample)
+                continue
+
+            file_path = Path(fname).resolve()
+            print(file_path)
+            if not file_path.exists():
+                logging.error("Файл не существует: %s", file_path)
+                continue
+
+            if file_path.name.startswith("~$"):
+                logging.warning("Пропущен lock-файл: %s", file_path)
+                continue
+
+            if file_path.suffix.lower() not in {".xlsx", ".xlsm", ".xls"}:
+                logging.warning("Не Excel-файл: %s", file_path)
+                continue
+
+            samples_by_file[file_path].append(sample)
 
         if not all_files:
             self.update_status("Файлы не найдены")
@@ -214,7 +222,7 @@ class QCProcessorApp:
             # self.btn_select_file_weights.config(state=NORMAL)
             return
 
-        total_files = len(all_files)
+        total_files = len(samples_by_file)
         self.log_message(f"Найдено файлов: {total_files}")
 
         pythoncom.CoInitialize()
@@ -226,45 +234,57 @@ class QCProcessorApp:
             excel.Visible = False
             excel.DisplayAlerts = False
 
-            for file_index, element in enumerate(all_files):
-                progress_value = (file_index + 1) / total_files * 100
+            count = 0
+            for file_path, samples in samples_by_file.items():
+                wb = None
+                plm_analysis_ws = None
+                tem_analysis_ws = None
+                weight_ws = None
+
+                count += 1
+                progress_value = count / total_files * 100
                 self.progress["value"] = progress_value
 
-                self.update_status(f"Обработка: {element['file_name']}")
+                self.update_status(f"Обработка: {file_path}")
                 self.log_message("*" * 50)
-                self.log_message(f"[{file_index + 1}/{total_files}] {element['file_name']}")
+                self.log_message(f"[{count}/{total_files}] {file_path}")
                 
                 wb = None
 
                 try:
-                    wb = open_with_retry(excel, element['file_name'])
+                    wb = open_with_retry(excel, file_path)
 
                     if not sheet_exists(wb, "SampleAnalyses"):
-                        self.log_message(f" {element['file_name']} - Лист SampleAnalyses не найден")
+                        self.log_message(f" {file_path} - Лист SampleAnalyses не найден")
                         continue
-
                     
                     tem_ws = wb.Worksheets("TEM_Calculation")
                     last_tem_row = tem_ws.Cells(tem_ws.Rows.Count, 1).End(xlUp).Row
                     print(last_tem_row)
-                    for i in range(last_tem_row, 5, -1 ):
-                        raw_sample_number = str(tem_ws.Range(f'A{i}').Value)
-                        if raw_sample_number != 'None' and raw_sample_number != 'none' and raw_sample_number != '':
-                            if raw_sample_number[0] in ['R', 'D'] and raw_sample_number[-2:] in ['KK', 'AB', 'VC', 'OV']:
-                                pure_sample_number = raw_sample_number[1:-2]
-                                print(pure_sample_number)
-                                if pure_sample_number == element['sample']:
-                                    print('test')
-                                    tem_ws.Range(f'O{i}').Value = element['Box Number']
-                                    tem_ws.Range(f'P{i}').Value = str(element['Grid_1']).upper()
-                                    tem_ws.Range(f'Q{i}').Value = str(element['Grid_2']).upper()
+
+                    for sample in samples:
+                        for i in range(last_tem_row, 5, -1 ):
+                            raw_sample_number = str(tem_ws.Range(f'A{i}').Value)
+                            if check_cell_value(raw_sample_number): 
+                                if raw_sample_number[0] in ['R', 'D'] and raw_sample_number[-2:] in ['KK', 'AB', 'VC', 'OV']:
+                                    pure_sample_number = raw_sample_number[1:-2]
+                                    if pure_sample_number == sample['sample']:
+                                        tem_ws.Range(f'O{i}').Value = sample['Box Number']
+                                        tem_ws.Range(f'P{i}').Value = str(sample['Grid_1']).upper()
+                                        tem_ws.Range(f'Q{i}').Value = str(sample['Grid_2']).upper()
 
                     wb.Save()
 
                     self.log_message("  ✓ Файл обработан и сохранен")
 
                 except Exception as e:
+                    error_text = traceback.format_exc()
+
                     self.log_message(f"  ✗ Ошибка обработки файла: {e}")
+                    self.log_message(error_text)
+
+                    wrong_files.append(error_text)
+
                     continue
 
                 finally:
@@ -279,7 +299,9 @@ class QCProcessorApp:
             pythoncom.CoUninitialize()
 
             self.btn_run.config(state=NORMAL)
-            # self.btn_select_file_weights.config(state=NORMAL)
+
+        with open("wrong_files.txt", "w", encoding="utf-8") as file:
+            file.writelines(f"{item}\n" for item in wrong_files)
 
         if not results:
             self.update_status("Готово, но изменений не было")

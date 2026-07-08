@@ -8,7 +8,7 @@ import sys
 from openpyxl import load_workbook
 import win32com.client as win32
 from pathlib import Path
-
+import traceback
 import threading
 from pathlib import Path
 from tkinter import Tk, Button, Label, Text, filedialog, messagebox, END, DISABLED, NORMAL
@@ -24,6 +24,8 @@ import pythoncom
 import time
 import pythoncom
 xlUp = -4162
+
+from collections import defaultdict
 
 def open_with_retry(excel, filepath, attempts=3, delay=2.0):
     """
@@ -78,7 +80,22 @@ def get_random_weights(input_weights_data, input_residue):
         return input_weights_data.pop(random_index)
     else:
         return
-    
+
+def unique_by_file_name(data):
+    seen_files = set()
+    result = []
+
+    for item in data:
+        file_name = item.get("file_name")
+
+        if file_name in seen_files:
+            continue
+
+        seen_files.add(file_name)
+        result.append(item)
+
+    return result
+
 def find_duplicates(nums):
     counts = Counter(nums)
     # Возвращаем ключи, количество которых больше 1
@@ -202,22 +219,28 @@ class QCProcessorApp:
         all_files_json = Path(self.file_with_file_list_path)
 
         with all_files_json.open("r", encoding="utf-8") as f:
-            all_files = json.load(f)
+            all_files_data = json.load(f)
 
 
         with Path(self.file_with_weights).open("r", encoding="utf-8") as f:
             blanks_tem_data = json.load(f)
 
-        if not all_files:
+        if not all_files_data:
             self.update_status("Файлы не найдены")
             messagebox.showerror("Ошибка", "Excel-файлы не найдены в указанной папке")
             self.btn_run.config(state=NORMAL)
             self.btn_select_file_weights.config(state=NORMAL)
             return
 
-        total_files = len(all_files)
+        total_files = len(all_files_data)
         self.log_message(f"Найдено файлов: {total_files}")
 
+        print(len(all_files_data))
+
+        unique_files_data = unique_by_file_name(all_files_data)
+
+        total_files = len(unique_files_data)
+        self.log_message(f"Найдено файлов: {total_files}")
         pythoncom.CoInitialize()
 
         excel = None
@@ -227,7 +250,7 @@ class QCProcessorApp:
             excel.Visible = False
             excel.DisplayAlerts = False
 
-            for file_index, element in enumerate(all_files):
+            for file_index, element in enumerate(unique_files_data):
                 progress_value = (file_index + 1) / total_files * 100
                 self.progress["value"] = progress_value
 
@@ -244,7 +267,12 @@ class QCProcessorApp:
                         self.log_message(f" {element['file_name']} - Лист SampleAnalyses не найден")
                         continue
 
-                    
+                    try:
+                        select_data = blanks_tem_data[element['project']]
+                    except:
+                        self.log_message(f" {element['file_name']} - No Blank")
+                        continue
+
                     tem_ws = wb.Worksheets("TEM_Calculation")
                     weight_ws = wb.Worksheets("NOB_Calculation")
                     residue = None
@@ -259,29 +287,26 @@ class QCProcessorApp:
 
                     last_tem_row = tem_ws.Cells(tem_ws.Rows.Count, 1).End(xlUp).Row
 
-                    select_data = blanks_tem_data[element['project']]
                     find = False
-                    if select_data:
-                        print(select_data)
-                        for i in range(last_tem_row, 5, -1 ):
-                            if str(tem_ws.Range(f'A{i}').Value).lower() != 'none':
-                                if str(tem_ws.Range(f'A{i}').Value).lower() == 'bl':
-                                    find = True
-                                    if select_data['grid_box'] != 'none':
-                                        tem_ws.Range(f'O{i}').Value = select_data['grid_box']
-                                    if select_data['grid_id_1'] != 'none':
-                                        tem_ws.Range(f'P{i}').Value = str(select_data['grid_id_1']).upper()
-                                    if select_data['grid_id_2'] != 'none':
-                                        tem_ws.Range(f'Q{i}').Value = str(select_data['grid_id_2']).upper()
-                                    tem_ws.Range(f'B{i}').Value = '1'
-                                    tem_ws.Range(f'E{i}').Value = residue
-                                    tem_ws.Range(f'F{i}').Value = 'NAD'
-                                    tem_ws.Range(f'G{i}').Value = 'NAD'
-                                    tem_ws.Range(f'I{i}').Value = 'NAD'
-                                    tem_ws.Range(f'J{i}').Value = 'NAD'
-                                    tem_ws.Range(f'L{i}').Value = 'Y'
-                                    tem_ws.Range(f'M{i}').Value = 'Y'
-                                    tem_ws.Range(f'N{i}').Value = 'Y'
+                    for i in range(last_tem_row, 5, -1 ):
+                        if str(tem_ws.Range(f'A{i}').Value).lower() != 'none':
+                            if str(tem_ws.Range(f'A{i}').Value).lower() == 'bl':
+                                find = True
+                                if select_data['grid_box'] != 'none':
+                                    tem_ws.Range(f'O{i}').Value = select_data['grid_box']
+                                if select_data['grid_id_1'] != 'none':
+                                    tem_ws.Range(f'P{i}').Value = str(select_data['grid_id_1']).upper()
+                                if select_data['grid_id_2'] != 'none':
+                                    tem_ws.Range(f'Q{i}').Value = str(select_data['grid_id_2']).upper()
+                                tem_ws.Range(f'B{i}').Value = '1'
+                                tem_ws.Range(f'E{i}').Value = residue
+                                tem_ws.Range(f'F{i}').Value = 'NAD'
+                                tem_ws.Range(f'G{i}').Value = 'NAD'
+                                tem_ws.Range(f'I{i}').Value = 'NAD'
+                                tem_ws.Range(f'J{i}').Value = 'NAD'
+                                tem_ws.Range(f'L{i}').Value = 'Y'
+                                tem_ws.Range(f'M{i}').Value = 'Y'
+                                tem_ws.Range(f'N{i}').Value = 'Y'
 
                         if find == False:
                             tem_ws.Range(f'A{last_tem_row}').Value = 'bl'
@@ -307,7 +332,13 @@ class QCProcessorApp:
                     self.log_message("  ✓ Файл обработан и сохранен")
 
                 except Exception as e:
+                    error_text = traceback.format_exc()
+
                     self.log_message(f"  ✗ Ошибка обработки файла: {e}")
+                    self.log_message(error_text)
+
+                    print(error_text)
+
                     continue
 
                 finally:
