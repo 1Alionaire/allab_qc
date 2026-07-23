@@ -185,7 +185,7 @@ class QCProcessorApp:
             counter += 1
             # 1. Берем информацию из M1
             project_info = plm_result_sheet["M1"].value
-            date_analyzed = plm_result_sheet["M2"].value
+            #date_analyzed = plm_result_sheet["M2"].value
 
             if project_info is not None:
                 if str(project_info).strip() != '':

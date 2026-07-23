@@ -65,9 +65,9 @@ def find_duplicates(nums):
 class QCProcessorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("QC Processor")
+        self.root.title("Delete PLM Sample")
         self.root.geometry("600x400")
-        self.root.resizable(False, False)
+        self.root.resizable(True, True)
         
         self.folder_path = None
         
@@ -180,8 +180,20 @@ class QCProcessorApp:
                 self.log_message("*" * 50)
                 self.log_message(f"[{file_index + 1}/{total_files}] {filepath.name}")
                 
-                wb = None
 
+                if 'AIR_TEM' in str(filepath.name) or 'AIR-TEM' in str(filepath.name):
+                    self.log_message(f" {filepath.name} - ⊘ Air TEM")
+                    continue
+
+                if 'Conflict' in str(filepath.name):
+                    self.log_message(f" {filepath.name} - ⊘ Duplicate from Conflict")
+                    continue
+
+                if ('PLM' not in filepath.name and 'NOB' not in filepath.name and 'TEM' not in filepath.name):
+                    self.log_message(f" {filepath.name}  ⊘ НЕ PLM файл")
+                    continue
+
+                wb = None
                 try:
                     wb = open_with_retry(excel, filepath)
 
@@ -280,4 +292,4 @@ if __name__ == "__main__":
 
     # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples" clean_duplicates_in_excel.py
     # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples_2nd_way" clean_duplicates_in_excel_second_way.py
-    # pyinstaller --onefile --windowed --name="Delete_all_old_dup_samples_2nd_way_v.01" clean_duplicates_in_excel_second_way.py
+    # pyinstaller --onefile  --name="Delete_all_old_dup_samples_2nd_way_v.01" clean_duplicates_in_excel_second_way.py
