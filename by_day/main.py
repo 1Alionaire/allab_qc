@@ -291,7 +291,6 @@ class QCProcessorApp:
             # 2. Берем информацию из B3 листа SampleAnalyses
             analyst_info = None
             
-            
             if str(sample_sheet["B3"].value).strip() != 'None':
                 analyst_info = str(sample_sheet["B3"].value).strip().upper()
             else:

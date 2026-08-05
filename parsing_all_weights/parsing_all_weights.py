@@ -58,6 +58,11 @@ logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(message)s'
 )
 
+def is_round_value(inp_value):
+    if (inp_value * 100) % 1 != 0:
+        return False
+    else:
+        return True
 
 class QCProcessorApp:
     def __init__(self, root):
@@ -209,17 +214,25 @@ class QCProcessorApp:
 
             for row in weight_sheet.iter_rows(min_row=7, max_row=weight_sheet.max_row, min_col=1, max_col=20, values_only=True):
                 try:
-                    results.append({
-                        'cruc_weight': round(float(row[3]), 2),
-                        'cruc_with_sample_weight': round(float(row[4]), 2),
-                        'sample_weight': round(float(row[5]), 2),
-                        'cruc_with_sample_ash_weight': round(float(row[6]), 2),
-                        'percent_organic': round(float(row[7]), 2),
-                        'petri_weight': round(float(row[8]), 2),
-                        'petri_with_sample_weight': round(float(row[9]), 2),
-                        'percent_caco3': round(float(row[12]), 2),
-                        'percent_residue': round(float(row[13]), 2),
-                    })  
+                    count = 0
+                    for i in range(3, 10):
+                        if is_round_value(float(row[i])):
+                            count += 1
+                    if count == 7:
+                        pass
+                    else:
+                        if ((0 < float(row[7]) < 100) and (0 < float(row[12]) < 100) and (0 < float(row[13]) < 100)):
+                            results.append({
+                                'cruc_weight': round(float(row[3]), 4),
+                                'cruc_with_sample_weight': round(float(row[4]), 4),
+                                'sample_weight': round(float(row[5]), 4),
+                                'cruc_with_sample_ash_weight': round(float(row[6]), 4),
+                                'percent_organic': round(float(row[7]), 4),
+                                'petri_weight': round(float(row[8]), 4),
+                                'petri_with_sample_weight': round(float(row[9]), 4),
+                                'percent_caco3': round(float(row[12]), 4),
+                                'percent_residue': round(float(row[13]), 4),
+                            })  
                 except:
                     continue
 
