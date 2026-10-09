@@ -6,6 +6,10 @@
     слева  — лента миниатюр всех страниц (сюда перетаскиваются PDF с рабочего стола);
     справа — просмотр выбранной страницы.
 
+Мышь:
+    перетащить миниатюру вверх/вниз по ленте — переставить страницу
+    (у края ленты она прокручивается сама; Esc — отменить перетаскивание)
+
 Горячие клавиши:
     ↑ / ↓            — предыдущая / следующая страница
     Ctrl+↑ / Ctrl+↓  — переместить страницу выше / ниже
@@ -36,7 +40,7 @@ except ImportError:
 # ============================================================================
 #  НАСТРОЙКИ
 # ============================================================================
-APP_TITLE = "Объединение PDF"
+APP_TITLE = "Merge PDF"
 WINDOW_SIZE = "1200x800"
 
 THUMB_WIDTH = 150           # ширина миниатюры в ленте, px
@@ -50,6 +54,11 @@ VIEW_MARGIN = 16            # поле вокруг страницы в обла
 VIEW_MAX_SCALE = 4.0        # максимальное увеличение при просмотре
 RESIZE_DELAY_MS = 150       # пауза перед перерисовкой при изменении размера окна, мс
 UNDO_LIMIT = 50             # сколько удалений можно отменить через Ctrl+Z
+DROP_POLL_MS = 100          # как часто проверять очередь перетащенных файлов, мс
+
+DRAG_THRESHOLD = 6          # на сколько px сдвинуть мышь, чтобы клик стал перетаскиванием
+AUTOSCROLL_ZONE = 40        # зона у верхнего/нижнего края ленты, где она прокручивается сама, px
+AUTOSCROLL_MS = 40          # скорость автопрокрутки (пауза между шагами), мс
 
 DEFAULT_OUTPUT_NAME = "merged.pdf"
 LOG_FILE_NAME = "pdf_merger.log"
@@ -58,6 +67,7 @@ COLOR_TAPE_BG = "#e9ecef"   # фон ленты
 COLOR_VIEW_BG = "#7f8790"   # фон области просмотра
 COLOR_SELECTED = "#1e6fd9"  # рамка выбранной страницы
 COLOR_PAGE_BORDER = "#9aa0a6"
+COLOR_DROP_LINE = "#e8590c" # линия «сюда встанет страница» при перетаскивании
 FONT_CAPTION = ("Segoe UI", 8)
 FONT_HINT = ("Segoe UI", 11)
 
@@ -92,7 +102,7 @@ def setup_logging():
         logging.getLogger().addHandler(handler)
         logging.getLogger().setLevel(logging.INFO)
         return path
-    return "(журнал недоступен)"
+    return "(log unaccessible)"
 
 
 LOG_PATH = setup_logging()
@@ -153,6 +163,13 @@ def enable_file_drop(widget, on_drop):
         hwnd = widget.winfo_id()  # дескриптор окна (HWND) самого виджета
         old_proc = None           # сюда сохраним оригинальную процедуру Tk (заполняется ниже)
 
+        # ВАЖНО: оконная процедура вызывается Windows посреди обработки событий Tcl.
+        # Любой вызов tkinter отсюда (даже after_idle) ломает внутреннее состояние
+        # _tkinter -> "Fatal Python error: PyEval_RestoreThread: NULL tstate".
+        # Поэтому здесь только складываем пути в обычный список,
+        # а забирает их таймер Tk (poll_drops) — уже в безопасном месте.
+        dropped = []
+
         def window_proc(hwnd_, msg, wparam, lparam):
             if msg != WM_DROPFILES:
                 # Всё, что не перетаскивание, — обрабатывает Tk как обычно
@@ -169,23 +186,31 @@ def enable_file_drop(widget, on_drop):
                     paths.append(buf.value)
                 point = wintypes.POINT()
                 shell32.DragQueryPoint(hdrop, ctypes.byref(point))
-                # Тяжёлую работу (открытие PDF) делаем не здесь, а чуть позже в обычном цикле Tk
-                widget.after_idle(on_drop, paths, point.x, point.y)
+                # НИКАКИХ вызовов tkinter здесь — только в очередь!
+                dropped.append((paths, point.x, point.y))
             except Exception:
-                logging.error("Ошибка при перетаскивании файлов:\n%s", traceback.format_exc())
+                logging.error("Error moving files:\n%s", traceback.format_exc())
             finally:
                 shell32.DragFinish(hdrop)  # обязательно освобождаем память Windows
             return 0
 
+        def poll_drops():
+            """Таймер Tk: забирает перетащенные файлы из очереди и передаёт приложению."""
+            widget.after(DROP_POLL_MS, poll_drops)  # сначала планируем следующий опрос,
+            while dropped:                          # чтобы ошибка в on_drop не остановила таймер
+                paths, x, y = dropped.pop(0)
+                on_drop(paths, x, y)
+
         new_proc = WNDPROC(window_proc)
         old_proc = set_window_long(hwnd, GWL_WNDPROC, ctypes.cast(new_proc, ctypes.c_void_p))
         shell32.DragAcceptFiles(hwnd, True)
+        widget.after(DROP_POLL_MS, poll_drops)
 
         # ВАЖНО: держим ссылку на функцию, иначе сборщик мусора её удалит и программа упадёт
         widget._drop_window_proc = new_proc
         return True
     except Exception:
-        logging.error("Не удалось включить drag-and-drop:\n%s", traceback.format_exc())
+        logging.error("Can't turn on drag-and-drop:\n%s", traceback.format_exc())
         return False
 
 
@@ -219,6 +244,15 @@ class PdfMergerApp:
         self._view_job = None     # id отложенной перерисовки просмотра
         self._tape_job = None     # id отложенной перерисовки ленты
 
+        # Перетаскивание миниатюры внутри ленты. None — ничего не тащим, иначе словарь:
+        #   index  — какую страницу тащим
+        #   start_y— где нажали кнопку мыши (координата в окне ленты)
+        #   last_y — где мышь сейчас
+        #   active — True, когда сдвинули дальше DRAG_THRESHOLD (до этого это просто клик)
+        #   target — позиция вставки: 0..len(entries), т.е. «перед страницей target»
+        self._drag = None
+        self._autoscroll_job = None
+
         self._build_ui()
         self._bind_keys()
 
@@ -242,17 +276,17 @@ class PdfMergerApp:
         bar = ttk.Frame(root, padding=(6, 6, 6, 0))
         bar.pack(side="top", fill="x")
 
-        ttk.Button(bar, text="Добавить PDF…", command=self.add_files_dialog).pack(side="left")
-        ttk.Button(bar, text="▲ Выше", command=lambda: self.move_selected(-1)).pack(side="left", padx=(12, 0))
-        ttk.Button(bar, text="▼ Ниже", command=lambda: self.move_selected(+1)).pack(side="left", padx=(4, 0))
-        ttk.Button(bar, text="Удалить страницу", command=self.delete_selected).pack(side="left", padx=(12, 0))
-        ttk.Button(bar, text="Вернуть", command=self.undo_delete).pack(side="left", padx=(4, 0))
-        ttk.Button(bar, text="Очистить всё", command=self.clear_all).pack(side="left", padx=(12, 0))
+        ttk.Button(bar, text="Add PDF…", command=self.add_files_dialog).pack(side="left")
+        ttk.Button(bar, text="▲ Up", command=lambda: self.move_selected(-1)).pack(side="left", padx=(12, 0))
+        ttk.Button(bar, text="▼ Down", command=lambda: self.move_selected(+1)).pack(side="left", padx=(4, 0))
+        ttk.Button(bar, text="Delete page", command=self.delete_selected).pack(side="left", padx=(12, 0))
+        ttk.Button(bar, text="Undo", command=self.undo_delete).pack(side="left", padx=(4, 0))
+        ttk.Button(bar, text="Clear all", command=self.clear_all).pack(side="left", padx=(12, 0))
 
-        ttk.Button(bar, text="Экспорт PDF…", command=self.export_pdf).pack(side="right")
-        ttk.Radiobutton(bar, text="По ширине", value="width", variable=self.view_mode,
+        ttk.Button(bar, text="Export PDF…", command=self.export_pdf).pack(side="right")
+        ttk.Radiobutton(bar, text="By Width", value="width", variable=self.view_mode,
                         command=self.show_current).pack(side="right", padx=(0, 16))
-        ttk.Radiobutton(bar, text="Страница целиком", value="page", variable=self.view_mode,
+        ttk.Radiobutton(bar, text="Whole page", value="page", variable=self.view_mode,
                         command=self.show_current).pack(side="right", padx=(0, 6))
 
         # --- Строка состояния (внизу) ---
@@ -285,7 +319,10 @@ class PdfMergerApp:
         paned.add(right, weight=1)
 
         # --- События мыши и изменения размеров ---
-        self.tape.bind("<Button-1>", self.on_tape_click)
+        self.tape.bind("<Button-1>", self.on_tape_press)
+        self.tape.bind("<B1-Motion>", self.on_tape_drag)
+        self.tape.bind("<ButtonRelease-1>", self.on_tape_release)
+        root.bind("<Escape>", lambda e: self.cancel_tape_drag())
         self.tape.bind("<Configure>", lambda e: self._schedule_tape_redraw())
         self.viewer.bind("<Configure>", lambda e: self._schedule_view_redraw())
         root.bind_all("<MouseWheel>", self.on_mouse_wheel)
@@ -317,15 +354,15 @@ class PdfMergerApp:
 
     def on_tk_error(self, exc_type, exc_value, exc_tb):
         text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-        logging.error("Необработанная ошибка:\n%s", text)
-        messagebox.showerror(APP_TITLE, "Произошла ошибка:\n{}\n\nПодробности в журнале:\n{}".format(
+        logging.error("Unexpected error:\n%s", text)
+        messagebox.showerror(APP_TITLE, "Error:\n{}\n\ check logs:\n{}".format(
             exc_value, LOG_PATH))
 
     # ------------------------------------------------- Добавление файлов --
     def add_files_dialog(self):
         paths = filedialog.askopenfilenames(
-            title="Выберите PDF-файлы",
-            filetypes=[("PDF-файлы", "*.pdf"), ("Все файлы", "*.*")])
+            title="Choose PDF-files",
+            filetypes=[("PDF-files", "*.pdf"), ("All files", "*.*")])
         if paths:
             self.add_files(list(paths), insert_at=len(self.entries))
 
@@ -354,7 +391,7 @@ class PdfMergerApp:
                     for page_no in range(doc.page_count):
                         new_entries.append(self._make_entry(key, path, doc, page_no))
                 except Exception as exc:
-                    logging.error("Не удалось открыть %s:\n%s", path, traceback.format_exc())
+                    logging.error("Can't open %s:\n%s", path, traceback.format_exc())
                     errors.append("{} — {}".format(os.path.basename(path), exc))
         finally:
             self.root.config(cursor="")
@@ -367,9 +404,9 @@ class PdfMergerApp:
 
         problems = []
         if errors:
-            problems.append("Не удалось открыть:\n" + "\n".join(errors))
+            problems.append("Can't open:\n" + "\n".join(errors))
         if skipped:
-            problems.append("Пропущены (не PDF):\n" + "\n".join(skipped))
+            problems.append("Skipped (not PDF):\n" + "\n".join(skipped))
         if problems:
             messagebox.showwarning(APP_TITLE, "\n\n".join(problems))
 
@@ -403,10 +440,10 @@ class PdfMergerApp:
         doc = fitz.open(stream=data, filetype="pdf")
         if doc.needs_pass:
             doc.close()
-            raise ValueError("файл защищён паролем")
+            raise ValueError("file protected by password")
         if doc.page_count == 0:
             doc.close()
-            raise ValueError("в файле нет страниц")
+            raise ValueError("no pagesin file")
 
         self.docs[key] = doc
         return key, doc
@@ -450,7 +487,7 @@ class PdfMergerApp:
             try:
                 entry["thumb"] = self._render(entry, entry["scale"])
             except Exception:
-                logging.error("Ошибка рендера миниатюры %s стр.%s:\n%s",
+                logging.error("Error render image %s стр.%s:\n%s",
                               entry["name"], entry["page_no"] + 1, traceback.format_exc())
                 entry["thumb"] = False  # больше не пытаемся
             # Подставляем картинку в уже нарисованную рамку — без полной перерисовки ленты
@@ -485,7 +522,7 @@ class PdfMergerApp:
             canvas_w = int(canvas["width"])
 
         if not self.entries:
-            canvas.create_text(canvas_w / 2, 60, text="Перетащите сюда\nPDF-файлы",
+            canvas.create_text(canvas_w / 2, 60, text="Drop files here\nPDF-files",
                                justify="center", font=FONT_HINT, fill="#6c757d")
             self.tape_height = 1
             canvas.configure(scrollregion=(0, 0, canvas_w, 1))
@@ -502,7 +539,7 @@ class PdfMergerApp:
             # Белая «страница» — рамка и заглушка, пока миниатюра не готова
             canvas.create_rectangle(x0, y, x0 + tw, y + th, fill="white", outline=COLOR_PAGE_BORDER)
             if entry["thumb"] is False:
-                canvas.create_text(x0 + tw / 2, y + th / 2, text="ошибка", fill="red")
+                canvas.create_text(x0 + tw / 2, y + th / 2, text="error", fill="red")
             entry["img_item"] = canvas.create_image(x0, y, anchor="nw", image=entry["thumb"] or "")
 
             name = entry["name"]
@@ -534,13 +571,111 @@ class PdfMergerApp:
         elif y1 > view_top + view_h:
             self.tape.yview_moveto((y1 - view_h) / self.tape_height)
 
-    def on_tape_click(self, event):
-        self.tape.focus_set()  # убираем фокус с кнопок, чтобы стрелки работали с лентой
-        canvas_y = self.tape.canvasy(event.y)
+    def _index_at(self, canvas_y):
+        """Индекс страницы под точкой canvas_y или None, если там пусто."""
         for i, (y0, y1) in enumerate(self.tape_boxes):
             if y0 <= canvas_y <= y1:
-                self.select(i)
-                return
+                return i
+        return None
+
+    # ------------------------------------ Перетаскивание внутри ленты --
+    def on_tape_press(self, event):
+        """Нажали кнопку мыши на ленте: выбираем страницу и запоминаем, вдруг начнут тащить."""
+        self.tape.focus_set()  # убираем фокус с кнопок, чтобы стрелки работали с лентой
+        index = self._index_at(self.tape.canvasy(event.y))
+        if index is None:
+            self._drag = None
+            return
+        self.select(index)
+        self._drag = {"index": index, "start_y": event.y, "last_y": event.y,
+                      "active": False, "target": None}
+
+    def on_tape_drag(self, event):
+        """Мышь движется с зажатой кнопкой."""
+        drag = self._drag
+        if drag is None:
+            return
+        drag["last_y"] = event.y
+        if not drag["active"]:
+            if abs(event.y - drag["start_y"]) < DRAG_THRESHOLD:
+                return  # пока это дрожание руки при клике, а не перетаскивание
+            drag["active"] = True
+            self.tape.config(cursor="sb_v_double_arrow")
+
+        self._update_drop_marker()
+
+        # Курсор у края ленты — запускаем автопрокрутку
+        near_edge = (event.y < AUTOSCROLL_ZONE
+                     or event.y > self.tape.winfo_height() - AUTOSCROLL_ZONE)
+        if near_edge and self._autoscroll_job is None:
+            self._autoscroll_job = self.root.after(AUTOSCROLL_MS, self._autoscroll_step)
+
+    def _autoscroll_step(self):
+        """Один шаг автопрокрутки, пока страницу держат у края ленты."""
+        self._autoscroll_job = None
+        drag = self._drag
+        if drag is None or not drag["active"]:
+            return
+        y = drag["last_y"]
+        if y < AUTOSCROLL_ZONE:
+            self.tape.yview_scroll(-1, "units")
+        elif y > self.tape.winfo_height() - AUTOSCROLL_ZONE:
+            self.tape.yview_scroll(1, "units")
+        else:
+            return  # мышь ушла от края — прокрутка больше не нужна
+        self._update_drop_marker()  # лента сдвинулась — линия тоже должна сдвинуться
+        self._autoscroll_job = self.root.after(AUTOSCROLL_MS, self._autoscroll_step)
+
+    def _update_drop_marker(self):
+        """Считает, куда встанет страница, и рисует там оранжевую линию."""
+        drag = self._drag
+        canvas = self.tape
+        canvas.delete("drop_marker")
+        target = self._index_for_drop(canvas.canvasy(drag["last_y"]))
+        drag["target"] = target
+
+        # Если страница останется на своём месте — линию не показываем
+        if target in (drag["index"], drag["index"] + 1) or not self.tape_boxes:
+            return
+
+        if target < len(self.tape_boxes):
+            y = self.tape_boxes[target][0]  # промежуток над страницей target
+        else:
+            y = self.tape_boxes[-1][1]      # после последней страницы
+        w = canvas.winfo_width()
+        canvas.create_line(8, y, w - 8, y, fill=COLOR_DROP_LINE, width=4, tags="drop_marker")
+        canvas.create_polygon(0, y - 7, 10, y, 0, y + 7, fill=COLOR_DROP_LINE, tags="drop_marker")
+        canvas.create_polygon(w, y - 7, w - 10, y, w, y + 7, fill=COLOR_DROP_LINE, tags="drop_marker")
+
+    def on_tape_release(self, event):
+        """Отпустили кнопку мыши: если тащили — переставляем страницу."""
+        drag = self._drag
+        self._finish_drag()
+        if drag is None or not drag["active"] or drag["target"] is None:
+            return
+
+        src, dst = drag["index"], drag["target"]
+        if dst > src:
+            dst -= 1  # после извлечения страницы все, что ниже неё, сдвигаются на 1 вверх
+        if dst == src:
+            self.redraw_tape()  # просто убрать линию
+            return
+        entry = self.entries.pop(src)
+        self.entries.insert(dst, entry)
+        self.select(dst)
+
+    def cancel_tape_drag(self):
+        """Esc во время перетаскивания — ничего не меняем."""
+        if self._drag is not None and self._drag["active"]:
+            self._finish_drag()
+            self.tape.delete("drop_marker")
+
+    def _finish_drag(self):
+        self._drag = None
+        self.tape.config(cursor="")
+        if self._autoscroll_job is not None:
+            self.root.after_cancel(self._autoscroll_job)
+            self._autoscroll_job = None
 
     # -------------------------------------------------------- Просмотр --
     def _schedule_view_redraw(self):
@@ -561,7 +696,7 @@ class PdfMergerApp:
         canvas_h = max(canvas.winfo_height(), 100)
 
         if self.selected is None:
-            hint = "Перетащите PDF-файлы на ленту слева\nили нажмите «Добавить PDF…»"
+            hint = "Drop PDF-files on left area\nor press Add PDF…»"
             canvas.create_text(canvas_w / 2, canvas_h / 2, text=hint, justify="center",
                                font=FONT_HINT, fill="white")
             canvas.configure(scrollregion=(0, 0, canvas_w, canvas_h))
@@ -579,9 +714,9 @@ class PdfMergerApp:
             scale = max(0.05, min(scale, VIEW_MAX_SCALE))
             self.view_image = self._render(entry, scale)
         except Exception:
-            logging.error("Ошибка просмотра %s стр.%s:\n%s",
+            logging.error("Error view %s стр.%s:\n%s",
                           entry["name"], entry["page_no"] + 1, traceback.format_exc())
-            canvas.create_text(canvas_w / 2, canvas_h / 2, text="Не удалось отобразить страницу",
+            canvas.create_text(canvas_w / 2, canvas_h / 2, text="Error while render",
                                font=FONT_HINT, fill="white")
             return
 
@@ -644,7 +779,7 @@ class PdfMergerApp:
     def clear_all(self):
         if not self.entries:
             return
-        if not messagebox.askyesno(APP_TITLE, "Убрать все страницы из ленты?"):
+        if not messagebox.askyesno(APP_TITLE, "Delete all pages?"):
             return
         if self._thumb_job is not None:
             self.root.after_cancel(self._thumb_job)
@@ -659,17 +794,17 @@ class PdfMergerApp:
     # ----------------------------------------------------------- Экспорт --
     def export_pdf(self):
         if not self.entries:
-            messagebox.showinfo(APP_TITLE, "Лента пуста — нечего сохранять.")
+            messagebox.showinfo(APP_TITLE, "No Pages")
             return
         out_path = filedialog.asksaveasfilename(
-            title="Сохранить единый PDF",
+            title="Save PDF",
             defaultextension=".pdf",
             initialfile=DEFAULT_OUTPUT_NAME,
-            filetypes=[("PDF-файлы", "*.pdf")])
+            filetypes=[("PDF-files", "*.pdf")])
         if not out_path:
             return
 
-        self.status.set("Сохранение…")
+        self.status.set("Saving")
         self.root.config(cursor="watch")
         self.root.update_idletasks()
         out = fitz.open()  # новый пустой документ
@@ -689,32 +824,32 @@ class PdfMergerApp:
             # garbage=3 убирает дубли общих ресурсов (шрифты и т.п.), deflate=True сжимает потоки
             out.save(out_path, garbage=3, deflate=True)
         except Exception as exc:
-            logging.error("Ошибка экспорта в %s:\n%s", out_path, traceback.format_exc())
-            messagebox.showerror(APP_TITLE, "Не удалось сохранить файл:\n{}\n\n"
-                                            "Если он открыт в другой программе — закройте её.".format(exc))
+            logging.error("Error export %s:\n%s", out_path, traceback.format_exc())
+            messagebox.showerror(APP_TITLE, "Error saving file:\n{}\n\n"
+                                            "If it's already opened in other program - close".format(exc))
             return
         finally:
             out.close()
             self.root.config(cursor="")
             self._update_status()
 
-        if messagebox.askyesno(APP_TITLE, "Сохранено страниц: {}\n{}\n\nОткрыть файл?".format(
+        if messagebox.askyesno(APP_TITLE, "Saved pages: {}\n{}\n\nOpen file?".format(
                 len(self.entries), out_path)):
             if hasattr(os, "startfile"):  # есть только в Windows
                 os.startfile(out_path)
 
     # ---------------------------------------------------- Строка статуса --
     def _update_status(self):
-        parts = ["Страниц в ленте: {}".format(len(self.entries))]
+        parts = ["Pages in area: {}".format(len(self.entries))]
         if self.selected is not None:
             e = self.entries[self.selected]
             total = self.docs[e["key"]].page_count
-            parts.append("Выбрана: {} — {}, стр. {} из {}".format(
+            parts.append("Chosen: {} — {}, page. {} from {}".format(
                 self.selected + 1, e["name"], e["page_no"] + 1, total))
         if any(e["thumb"] is None for e in self.entries):
-            parts.append("готовятся миниатюры…")
+            parts.append("preparing images")
         if not self.drop_enabled:
-            parts.append("перетаскивание недоступно — используйте «Добавить PDF…»")
+            parts.append("you can't drop — use «Add PDF…»")
         self.status.set("   |   ".join(parts))
 
 
@@ -732,4 +867,4 @@ if __name__ == "__main__":
 
 #PyMuPDF==1.22.5  
 # python -m pip install -r requirements.txt
-# python -m PyInstaller --onefile --windowed --name PDF_Merger pdf_merger.py
+# python -m PyInstaller --onefile --windowed --name PDF_Merger iter1.py
